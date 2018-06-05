@@ -24,7 +24,7 @@ typedef enum {TAT,RT,CBT,THGT,WT} Metric;
 \*****************************************************************************/
 #define MAX_QUEUE_SIZE 10 
 #define FCFS            1 
-#define SRTF            2
+#define SJF             2
 #define RR              3 
 
 
@@ -57,7 +57,7 @@ Flag                 ManagementInitialization(void);
 void                 LongtermScheduler(void);
 void                 IO();
 void                 CPUScheduler(Identifier whichPolicy);
-ProcessControlBlock *SRTF_Scheduler();
+ProcessControlBlock *SJF_Scheduler();
 ProcessControlBlock *FCFS_Scheduler();
 ProcessControlBlock *RR_Scheduler();
 void                 Dispatcher();
@@ -146,7 +146,7 @@ void IO() {
 }
 
 /***********************************************************************\    
- * Input : whichPolicy (1:FCFS, 2: SRTF, and 3:RR)                      *        
+ * Input : whichPolicy (1:FCFS, 2: SJF, and 3:RR)                      *        
  * Output: None                                                         * 
  * Function: Selects Process from Ready Queue and Puts it on Running Q. *
 \***********************************************************************/
@@ -155,7 +155,7 @@ void CPUScheduler(Identifier whichPolicy) {
   switch(whichPolicy){
     case FCFS : selectedProcess = FCFS_Scheduler();
       break;
-    case SRTF : selectedProcess = SRTF_Scheduler();
+    case SJF : selectedProcess = SJF_Scheduler();
       break;
     case RR   : selectedProcess = RR_Scheduler();
   }
@@ -171,8 +171,9 @@ void CPUScheduler(Identifier whichPolicy) {
  * Function: Returns process control block based on FCFS                *                                                \***********************************************************************/
 ProcessControlBlock *FCFS_Scheduler() {
   /* Select Process based on FCFS */
-  // Implement code for FCFS
-  ProcessControlBlock *selectedProcess;
+
+  // select the first process in ready queue as per FCFS
+  ProcessControlBlock *selectedProcess = DequeueProcess(READYQUEUE);
 
   return(selectedProcess);
 }
@@ -181,15 +182,20 @@ ProcessControlBlock *FCFS_Scheduler() {
 
 /***********************************************************************\                         
  * Input : None                                                         *                                     
- * Output: Pointer to the process with shortest remaining time (SRTF)   *                                     
- * Function: Returns process control block with SRTF                    *                                     
+ * Output: Pointer to the process with shortest remaining time (SJF)   *                                     
+ * Function: Returns process control block with SJF                    *                                     
 \***********************************************************************/
-ProcessControlBlock *SRTF_Scheduler() {
-  /* Select Process with Shortest Remaining Time*/
-  ProcessControlBlock *selectedProcess;
-  
-  // Implement code for SRTF
- 
+ProcessControlBlock *SJF_Scheduler() {
+  /* Select Process with Shortest CPU burst Time*/
+  ProcessControlBlock *selectedProcess = DequeueProcess(READYQUEUE);
+  ProcessControlBlock *temp = DequeueProcess(READYQUEUE);
+  int minCpuTime = temp->CpuBurstTime;
+  while (temp->next != null) {
+    if (temp->CpuBurstTime < minCpuTime) {
+      minCpuTime = temp->CpuBurstTime;
+      selectedProcess = temp;
+    }
+  }
   return(selectedProcess);
 }
 
