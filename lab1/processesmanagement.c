@@ -190,11 +190,12 @@ ProcessControlBlock *SJF_Scheduler() {
   ProcessControlBlock *selectedProcess = DequeueProcess(READYQUEUE);
   ProcessControlBlock *temp = DequeueProcess(READYQUEUE);
   int minCpuTime = temp->CpuBurstTime;
-  while (temp->next != 0) {
+  while (temp->next != NULL) {
     if (temp->CpuBurstTime < minCpuTime) {
       minCpuTime = temp->CpuBurstTime;
       selectedProcess = temp;
     }
+    temp = temp->next;
   }
   return(selectedProcess);
 }
