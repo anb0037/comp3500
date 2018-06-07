@@ -43,6 +43,9 @@ typedef enum {TAT,RT,CBT,THGT,WT} Metric;
 *                                  Global data                                *
 \*****************************************************************************/
 
+int SizeOfRunningQueue;
+int SizeOfReadyQueue;
+
 Quantity NumberofJobs[MAXMETRICS]; // Number of Jobs for which metric was collected
 Average  SumMetrics[MAXMETRICS]; // Sum for each Metrics
 
@@ -161,7 +164,8 @@ void CPUScheduler(Identifier whichPolicy) {
   }
   if (selectedProcess) {
     selectedProcess->state = RUNNING; // Process state becomes Running                                     
-    EnqueueProcess(RUNNINGQUEUE, selectedProcess); // Put process in Running Queue                         
+    EnqueueProcess(RUNNINGQUEUE, selectedProcess); // Put process in Running Queue
+    SizeOfRunningQueue++;                      
   }
 }
 
@@ -171,10 +175,12 @@ void CPUScheduler(Identifier whichPolicy) {
  * Function: Returns process control block based on FCFS                *                                                \***********************************************************************/
 ProcessControlBlock *FCFS_Scheduler() {
   /* Select Process based on FCFS */
-
-  // select the first process in ready queue as per FCFS
-  ProcessControlBlock *selectedProcess = DequeueProcess(READYQUEUE);
-
+  ProcessControlBlock *selectedProcess = Queues[READYQUEUE].Tail;
+  if (selectedProcess == NULL  || SizeOfRunningQueue >= 1) {
+    return;
+  }
+  selectedProcess = DequeueProcess(READYQUEUE);
+  SizeOfReadyQueue--;
   return(selectedProcess);
 }
 
@@ -186,17 +192,20 @@ ProcessControlBlock *FCFS_Scheduler() {
  * Function: Returns process control block with SJF                    *                                     
 \***********************************************************************/
 ProcessControlBlock *SJF_Scheduler() {
-  /* Select Process with Shortest CPU burst Time*/
-  ProcessControlBlock *selectedProcess = DequeueProcess(READYQUEUE);
-  ProcessControlBlock *temp = DequeueProcess(READYQUEUE);
-  int minCpuTime = temp->CpuBurstTime;
-  while (temp->next != NULL) {
-    if (temp->CpuBurstTime < minCpuTime) {
-      minCpuTime = temp->CpuBurstTime;
+   /* Select Process with Shortest Remaining Time*/
+  ProcessControlBlock *temp = Queues[READYQUEUE].Tail;
+  ProcessControlBlock selectedProcess;
+  if (temp == NULL || SizeOfReadyQueue >= 1) {
+    return;
+  }
+  int minRemTime = temp->CpuBurstTime;
+  while (temp->previous != NULL) {
+    if (temp->CpuBurstTime < minRemTime) {
+      minRemTime = temp->CpuBurstTime;
       selectedProcess = temp;
     }
-    temp = temp->next;
-  }
+    temp = temp->previous;
+  } 
   return(selectedProcess);
 }
 
@@ -282,6 +291,7 @@ void LongtermScheduler(void){
     currentProcess->TimeInJobQueue = Now() - currentProcess->JobArrivalTime; // Set TimeInJobQueue
     currentProcess->JobStartTime = Now(); // Set JobStartTime
     EnqueueProcess(READYQUEUE,currentProcess); // Place process in Ready Queue
+    SizeOfReadyQueue++;
     currentProcess->state = READY; // Update process state
     currentProcess = DequeueProcess(JOBQUEUE);
   }
@@ -293,6 +303,8 @@ void LongtermScheduler(void){
 * Output: TRUE if Intialization successful                              *
 \***********************************************************************/
 Flag ManagementInitialization(void){
+  SizeOfReadyQueue = 0;
+  SizeOfRunningQueue = 0;
   Metric m;
   for (m = TAT; m < MAXMETRICS; m++){
      NumberofJobs[m] = 0;
