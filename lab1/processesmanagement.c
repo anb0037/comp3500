@@ -224,7 +224,7 @@ ProcessControlBlock *RR_Scheduler() { //testing dumbshit
       temp->CpuBurstTime = Quantum;
   }
   *selectedProcess = *temp;
-  EnqueueProcess(RUNNINGQUEUE, selectedProcess);
+  EnqueueProcess(RUNNINGQUEUE, *selectedProcess);
 
   // Implement code for RR
 
