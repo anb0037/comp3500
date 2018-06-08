@@ -211,20 +211,21 @@ ProcessControlBlock *SJF_Scheduler() {
 /***********************************************************************\
  * Input : None                                                         *
  * Output: Pointer to the process based on Round Robin (RR)             *
- * Function: Returns process control block based on RR                  *                                              \
+ * Function: Returns process control block based on RR                  *   
  \***********************************************************************/
-ProcessControlBlock *RR_Scheduler() { //testing dumbshit
+ProcessControlBlock *RR_Scheduler() {
   /* Select Process based on RR*/
-  ProcessControlBlock *selectedProcess;
-  ProcessControlBlock *temp = Queues[READYQUEUE].Tail;
-  if (temp == NULL || SizeOfRunningQueue >= 1) {
+  ProcessControlBlock *selectedProcess = Queues[READYQUEUE].Tail;
+  ProcessControlBlock *topOfRunningQueue = Queues[RUNNINGQUEUE].Tail;
+  if (selectedProcess == NULL || topOfRunningQueue != NULL) {
       return NULL;
   }
-  if (Quantum < temp->CpuBurstTime) {
-      temp->CpuBurstTime = Quantum;
+  if (Quantum < selectedProcess->CpuBurstTime) {
+      selectedProcess->CpuBurstTime = Quantum;
   }
-  *selectedProcess = *temp;
   EnqueueProcess(RUNNINGQUEUE, selectedProcess);
+  DequeueProcess(READYQUEUE);
+  
 
   // Implement code for RR
 
