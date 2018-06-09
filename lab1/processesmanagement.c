@@ -152,7 +152,7 @@ void IO() {
  * Function: Selects Process from Ready Queue and Puts it on Running Q. *
 \***********************************************************************/
 void CPUScheduler(Identifier whichPolicy) {
-  ProcessControlBlock *selectedProcess;
+  ProcessControlBlock  *selectedProcess;
   switch(whichPolicy){
     case FCFS : selectedProcess = FCFS_Scheduler();
       break;
@@ -199,8 +199,10 @@ ProcessControlBlock *SJF_Scheduler() {
   }
   int minDuration = temp->TotalJobDuration;
   while (temp->previous != NULL) {
+    printf("%d\n", temp->ProcessID);
     if (temp->TotalJobDuration < minDuration) {
       minDuration = temp->TotalJobDuration;
+      printf("selecting pid: %d duration: %d", temp->ProcessID, temp->TotalJobDuration);
       selectedProcess = temp;
     }
    temp = temp->previous;
@@ -276,8 +278,8 @@ void BookKeeping(void){
   DisplayQueue("Exit Queue", EXITQUEUE);
   double end = Now(); // Total time for all processes to arrive
   Metric m;
+  // scan and record exit queue
   ProcessControlBlock *temp = Queues[EXITQUEUE].Tail;
-  
   while (temp != NULL && temp->previous != NULL) {
      NumberofJobs[THGT]++;
      SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
@@ -285,6 +287,10 @@ void BookKeeping(void){
      SumMetrics[CBT] += temp->TimeInCpu;
      temp = temp->previous;
   }
+  NumberOfJobs[THGT]++; // record last element of queue
+  SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
+  SumMetrics[RT] += temp->JobStartTime - temp->JobArrivalTime;
+  SumMetrics[CBT] += temp->TimeInCpu;
   
 
   printf("\n********* Processes Managemenent Numbers ******************************\n");
@@ -335,6 +341,7 @@ Flag ManagementInitialization(void){
 * Output: TRUE if removal is successful             *
 \***************************************************/ 
 Flag RemoveFromQueue(ProcessControlBlock *pcb, Queue whichQueue) {
+	
 	if (pcb != NULL && pcb->previous != NULL) { 
    		if (pcb->next != NULL) { // condition passes if selectedProcess is in middle of queue
         	pcb->previous->next = pcb->next;
@@ -347,5 +354,6 @@ Flag RemoveFromQueue(ProcessControlBlock *pcb, Queue whichQueue) {
   	} else {
   		return FALSE;
   	}
+	
   	return TRUE;
 }
