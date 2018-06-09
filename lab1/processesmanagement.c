@@ -196,25 +196,15 @@ ProcessControlBlock *SJF_Scheduler() {
   if (temp == NULL || topOfRunningQueue != NULL) {
 	return;
   }
-  int minRemTime = temp->CpuBurstTime;
+  int minDuration = temp->TotalJobDuration;
   while (temp->previous != NULL) {
-    if (temp->CpuBurstTime < minRemTime) {
-      minRemTime = temp->CpuBurstTime;
-      *selectedProcess = *temp;
+    if (temp->TotalJobDuration < minDuration) {
+      minDuration = temp->TotalJobDuration;
+      selectedProcess = temp;
     }
    temp = temp->previous;
   }
-  if (selectedProcess->previous != NULL) { // remove selectedProcess from readyQueue manually
-   if (selectedProcess->next != NULL) { // condition passes if selectedProcess is in middle of queue
-        selectedProcess->previous->next = selectedProcess->next;
-        selectedProcess->next->previous = selectedProcess->previous;
-     } else { // condition passes if selectedProcess is at the tail of the queue
-       Queues[READYQUEUE].Tail = selectedProcess->previous;
-     }
-  } else { // condition passes if selectedProcess it at head of queue
-     Queues[READYQUEUE].Head = selectedProcess->next;
-     temp = temp->previous;
-  }
+  RemoveFromQueue(selectedProcess, READYQUEUE);
   return(selectedProcess);
 }
 
@@ -330,4 +320,25 @@ Flag ManagementInitialization(void){
      SumMetrics[m]   = 0.0;
   }
   return TRUE;
+}
+
+/***************************************************\
+* Input : pointer to selected ProcessControlBlock   *
+* 		  Which queue to perform the removal on     *
+* Output: TRUE if removal is successful             *
+\***************************************************/ 
+Flag RemoveFromQueue(ProcessControlBlock *pcb, Queue whichQueue) {
+	if (pcb != NULL && pcb->previous != NULL) { 
+   		if (pcb->next != NULL) { // condition passes if selectedProcess is in middle of queue
+        	pcb->previous->next = pcb->next;
+        	pcb->next->previous = pcb->previous;
+     	} else { // condition passes if selectedProcess is at the tail of the queue
+       		Queues[whichQueue].Tail = pcb->previous;
+     	}
+  	} else if (pcb != NULL) { // condition passes if selectedProcess it at head of queue
+    	Queues[whichQueue].Head = pcb->next;
+  	} else {
+  		return FALSE;
+  	}
+  	return TRUE;
 }
