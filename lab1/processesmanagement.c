@@ -269,9 +269,15 @@ void NewJobIn(ProcessControlBlock whichProcess){
 *     and CPU Utilization                                              *
 \***********************************************************************/
 void BookKeeping(void){
+  DisplayQueue("Job Queue", JOBQUEUE);
+  DisplayQueue("Ready Queue: ", READYQUEUE);
+  DisplayQueue("Running Queue: ", RUNNINGQUEUE);
+  DisplayQueue("Waiting Queue: ", WAITINGQUEUE);
+  DisplayQueue("Exit Queue", EXITQUEUE);
   double end = Now(); // Total time for all processes to arrive
   Metric m;
   ProcessControlBlock *temp = Queues[EXITQUEUE].Tail;
+  
   while (temp != NULL && temp->previous != NULL) {
      NumberofJobs[THGT]++;
      SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
