@@ -54,6 +54,7 @@ void                 ManageProcesses(void);
 void                 NewJobIn(ProcessControlBlock whichProcess);
 void                 BookKeeping(void);
 Flag                 ManagementInitialization(void);
+Flag				 RemoveFromQueue(ProcessControlBlock *pcb, Queue whichQueue);
 void                 LongtermScheduler(void);
 void                 IO();
 void                 CPUScheduler(Identifier whichPolicy);
