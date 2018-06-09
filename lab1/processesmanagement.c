@@ -36,7 +36,7 @@ typedef enum {TAT,RT,CBT,THGT,WT} Metric;
 *                            Global data structures                           *
 \*****************************************************************************/
 
-int SizeOfRunningQueue;
+
 
 /*****************************************************************************\
 *                                  Global data                                *
@@ -44,6 +44,7 @@ int SizeOfRunningQueue;
 
 Quantity NumberofJobs[MAXMETRICS]; // Number of Jobs for which metric was collected
 Average  SumMetrics[MAXMETRICS]; // Sum for each Metrics
+Quantity QueueLength[MAXQUEUES]; // length of each queue
 
 /*****************************************************************************\
 *                               Function prototypes                           *
@@ -188,15 +189,13 @@ ProcessControlBlock *FCFS_Scheduler() {
  * Function: Returns process control block with SJF                    *
 \***********************************************************************/
 ProcessControlBlock *SJF_Scheduler() {  
- /* Select Process with Shortest Remaining Time*/
+  /* Select Process with Shortest Remaining Time*/
   ProcessControlBlock *temp = Queues[READYQUEUE].Tail;
   ProcessControlBlock *topOfRunningQueue = Queues[RUNNINGQUEUE].Tail;
   ProcessControlBlock *selectedProcess = temp;
-
   if (temp == NULL || topOfRunningQueue != NULL) {
 	return;
   }
-
   int minRemTime = temp->CpuBurstTime;
   while (temp->previous != NULL) {
     if (temp->CpuBurstTime < minRemTime) {
@@ -205,7 +204,6 @@ ProcessControlBlock *SJF_Scheduler() {
     }
    temp = temp->previous;
   }
-
   if (selectedProcess->previous != NULL) { // remove selectedProcess from readyQueue manually
    if (selectedProcess->next != NULL) { // condition passes if selectedProcess is in middle of queue
         selectedProcess->previous->next = selectedProcess->next;
@@ -270,8 +268,9 @@ void NewJobIn(ProcessControlBlock whichProcess){
   LongtermScheduler(); /* Job Admission  */
 }
 
-
-/***********************************************************************\                                               * Input : None                                                         *                                                * Output: None                                                         *
+/**********************************************************************\
+* Input: None                                                          *
+* Output: None                                                         *
 * Function:                                                            *
 * 1) BookKeeping is called automatically when 250 arrived              *
 * 2) Computes and display metrics: average turnaround  time, throughput*
@@ -279,24 +278,21 @@ void NewJobIn(ProcessControlBlock whichProcess){
 *     and CPU Utilization                                              *
 \***********************************************************************/
 void BookKeeping(void){
-  printf("here1\n");
   double end = Now(); // Total time for all processes to arrive
   Metric m;
   ProcessControlBlock *temp = Queues[EXITQUEUE].Tail;
-  int completedProcesses = 0;
-  printf("here2\n");
   while (temp != NULL && temp->previous != NULL) {
-     printf("here");
-     completedProcesses++;
-     printf("here3\n");
+     NumberofJobs[THGT]++;
+     SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
+     SumMetrics[RT] += temp->JobStartTime - temp->JobArrivalTime;
+     SumMetrics[CBT] += temp->TimeInCpu;
      temp = temp->previous;
-     printf("here4\n");
   }
-  printf("here5\n");
+  
 
   printf("\n********* Processes Managemenent Numbers ******************************\n");
   printf("Policy Number = %d, Quantum = %.6f   Show = %d\n", PolicyNumber, Quantum, Show);
-  printf("Number of Completed Processes = %d\n", completedProcesses);
+  printf("Number of Completed Processes = %d\n", NumberofJobs[THGT]);
   printf("ATAT=%f   ART=%f  CBT = %f  T=%f AWT=%f\n", 
 	 SumMetrics[TAT], SumMetrics[RT], SumMetrics[CBT], 
 	 NumberofJobs[THGT]/Now(), SumMetrics[WT]);
@@ -329,7 +325,6 @@ void LongtermScheduler(void){
 \***********************************************************************/
 Flag ManagementInitialization(void){
   Metric m;
-  SizeOfRunningQueue = 0;
   for (m = TAT; m < MAXMETRICS; m++){
      NumberofJobs[m] = 0;
      SumMetrics[m]   = 0.0;
