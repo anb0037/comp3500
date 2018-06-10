@@ -259,7 +259,7 @@ void Dispatcher() {
   /////
 
   if (pcb != NULL) {
-  	if (pcb->TimeInCpu >= pcb->TotalJobDuration) {
+  	/*if (pcb->TimeInCpu >= pcb->TotalJobDuration) {
 		pcb->JobExitTime = Now();
 		NumberofJobs[THGT]++;
 		NumberofJobs[TAT]++;
@@ -267,18 +267,19 @@ void Dispatcher() {
 		QueueLength[RUNNINGQUEUE]--;
   		EnqueueProcess(EXITQUEUE, pcb);
                 QueueLength[EXITQUEUE]++;
-  	}
+  	}*/
 
     if (pcb->TimeInCpu > 0 && (pcb->TotalJobDuration - pcb->TimeInCpu) > 0) { //check for remaining CPU Job time for RR
         OnCPU(pcb, pcb->CpuBurstTime);
         pcb->TimeInCpu += pcb->CpuBurstTime;
         if (pcb->TimeInCpu >= pcb->TotalJobDuration) { //check if job is finished. Dequeue if so
-	  pcb->JobExitTime = Now();
-	  NumberofJobs[THGT]++;
-	  NumberofJobs[TAT]++;
-          DequeueProcess(RUNNINGQUEUE);
-          QueueLength[RUNNINGQUEUE]--;
-          EnqueueProcess(EXITQUEUE, pcb);
+	          pcb->JobExitTime = Now();
+	          NumberofJobs[THGT]++;
+	          NumberofJobs[TAT]++;
+            DequeueProcess(RUNNINGQUEUE);
+            QueueLength[RUNNINGQUEUE]--;
+            EnqueueProcess(EXITQUEUE, pcb);
+            QueueLength[EXITQUEUE]++;
         }
         else { //Processes who need more time go back to ready queue (Exclusive to Red Robin policy).
             DequeueProcess(RUNNINGQUEUE);
