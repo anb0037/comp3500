@@ -242,6 +242,14 @@ ProcessControlBlock *RR_Scheduler() {
 \***********************************************************************/
 void Dispatcher() {
   double start;
+  ProcessControlBlock *pcb = Queues[RUNNINGQUEUE].Tail;
+  if (pcb != NULL) {
+  	if (pcb->TimeInCpu >= pcb->TotalJobDuration) {
+  		EnqueueProcess(EXITQUEUE, DequeueProcess(RUNNINGQUEUE));
+  	} else {
+  		OnCpu(pcb, pcb->CpuBurstTime);
+  	}
+  }
 }
 
 /***********************************************************************\
@@ -285,13 +293,22 @@ void BookKeeping(void){
      SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
      SumMetrics[RT] += temp->JobStartTime - temp->JobArrivalTime;
      SumMetrics[CBT] += temp->TimeInCpu;
+     SumMetrics[WT] += temp->TimeInReadyQueue;
      temp = temp->previous;
   }
-  NumberOfJobs[THGT]++; // record last element of queue
-  SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
-  SumMetrics[RT] += temp->JobStartTime - temp->JobArrivalTime;
-  SumMetrics[CBT] += temp->TimeInCpu;
-  
+  if (temp != NULL) { // record last element of queue
+	NumberOfJobs[THGT]++; 
+  	SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
+  	SumMetrics[RT] += temp->JobStartTime - temp->JobArrivalTime;
+  	SumMetrics[WT] += temp->TimeInReadyQueue;
+  	SumMetrics[CBT] += temp->TimeInCpu;
+  }
+  if (NumberOfJobs[THGT] != 0) {
+	SumMetrics[TAT] /= NumberOfJobs[THGT];
+	SumMetrics[RT] /= NumberOfJobs[THGT];
+	SumMetrics[WT] /= NumberOfJobs[THGT];
+	CBT /= end;
+  }
 
   printf("\n********* Processes Managemenent Numbers ******************************\n");
   printf("Policy Number = %d, Quantum = %.6f   Show = %d\n", PolicyNumber, Quantum, Show);
@@ -341,7 +358,6 @@ Flag ManagementInitialization(void){
 * Output: TRUE if removal is successful             *
 \***************************************************/ 
 Flag RemoveFromQueue(ProcessControlBlock *pcb, Queue whichQueue) {
-	
 	if (pcb != NULL && pcb->previous != NULL) { 
    		if (pcb->next != NULL) { // condition passes if selectedProcess is in middle of queue
         	pcb->previous->next = pcb->next;
