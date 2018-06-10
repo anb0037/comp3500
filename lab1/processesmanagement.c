@@ -197,7 +197,7 @@ ProcessControlBlock *FCFS_Scheduler() {
  * Output: Pointer to the process with shortest remaining time (SJF)   *
  * Function: Returns process control block with SJF                    *
 \***********************************************************************/
-ProcessControlBlock *SJF_Scheduler() {  
+ProcessControlBlock *SJF_Scheduler() {
   /* Select Process with Shortest Remaining Time*/
   ProcessControlBlock *temp = Queues[READYQUEUE].Tail;
   ProcessControlBlock *topOfRunningQueue = Queues[RUNNINGQUEUE].Tail;
@@ -229,7 +229,7 @@ ProcessControlBlock *SJF_Scheduler() {
 /***********************************************************************\
  * Input : None                                                         *
  * Output: Pointer to the process based on Round Robin (RR)             *
- * Function: Returns process control block based on RR                  *   
+ * Function: Returns process control block based on RR                  *
  \***********************************************************************/
 ProcessControlBlock *RR_Scheduler() {
   /* Select Process based on RR*/
@@ -265,7 +265,22 @@ void Dispatcher() {
 		QueueLength[RUNNINGQUEUE]--;
   		EnqueueProcess(EXITQUEUE, pcb);
                 QueueLength[EXITQUEUE]++;
-  	} else {
+  	}
+    if (pcb->RemainingCpuBurstTime > 0) { //check for remaining CPU burst time for RR
+        pcb->RemainingCpuBurstTime -= pcb->CpuBurstTime //Subtract quantum from rem. CPU time.
+        if (pcb->RemainingCpuBurstTime <= 0) { //check if job is finished. Dequeue if so
+          DequeueProcess(RUNNINGQUEUE);
+          QueueLength[RUNNINGQUEUE]--;
+          EnqueueProcess(EXITQUEUE, pcb)
+        }
+        else { //Processes who need more time go back to ready queue (Exclusive to Red Robin policy).
+            DequeueProcess(RUNNINGQUEUE);
+            EnqueueProcess(READYQUEUE, pcb)
+            QueueLength[RUNNINGQUEUE]--;
+            QueueLength[READYQUEUE]++;
+        }
+    }
+    else {
 		if (pcb->TimeInCpu == 0) { // metrics
 			pcb->StartCpuTime = Now();
 			NumberofJobs[RT]++;
@@ -354,8 +369,8 @@ void BookKeeping(void){
   printf("\n********* Processes Managemenent Numbers ******************************\n");
   printf("Policy Number = %d, Quantum = %.6f   Show = %d\n", PolicyNumber, Quantum, Show);
   printf("Number of Completed Processes = %d\n", NumberofJobs[THGT]);
-  printf("ATAT=%f   ART=%f  CBT = %f  T=%f AWT=%f\n", 
-	 SumMetrics[TAT], SumMetrics[RT], SumMetrics[CBT], 
+  printf("ATAT=%f   ART=%f  CBT = %f  T=%f AWT=%f\n",
+	 SumMetrics[TAT], SumMetrics[RT], SumMetrics[CBT],
 	 NumberofJobs[THGT]/Now(), SumMetrics[WT]);
 
   exit(0);
@@ -403,9 +418,9 @@ Flag ManagementInitialization(void){
 * Input : pointer to selected ProcessControlBlock   *
 * 		  Which queue to perform the removal on     *
 * Output: TRUE if removal is successful             *
-\***************************************************/ 
+\***************************************************/
 Flag RemoveFromQueue(ProcessControlBlock *pcb, Queue whichQueue) {
-	if (pcb != NULL && pcb->previous != NULL) { 
+	if (pcb != NULL && pcb->previous != NULL) {
    		if (pcb->next != NULL) { // condition passes if selectedProcess is in middle of queue
         	pcb->previous->next = pcb->next;
         	pcb->next->previous = pcb->previous;
@@ -417,6 +432,6 @@ Flag RemoveFromQueue(ProcessControlBlock *pcb, Queue whichQueue) {
   	} else {
   		return FALSE;
   	}
-	
+
   	return TRUE;
 }
