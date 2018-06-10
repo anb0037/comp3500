@@ -268,16 +268,12 @@ void Dispatcher() {
   		EnqueueProcess(EXITQUEUE, pcb);
                 QueueLength[EXITQUEUE]++;
   	}
-<<<<<<< HEAD
-    if (pcb->RemainingCpuBurstTime > 0) { //check for remaining CPU burst time for RR
-        pcb->RemainingCpuBurstTime -= pcb->CpuBurstTime; //Subtract quantum from rem. CPU time.
-        if (pcb->RemainingCpuBurstTime <= 0) { //check if job is finished. Dequeue if so
-=======
+
     if (pcb->TimeInCpu > 0 && (pcb->TotalJobDuration - pcb->TimeInCpu) > 0) { //check for remaining CPU Job time for RR
         OnCPU(pcb, pcb->CpuBurstTime);
         pcb->TimeInCpu += pcb->CpuBurstTime;
         if (pcb->TimeInCpu >= pcb->TotalJobDuration) { //check if job is finished. Dequeue if so
->>>>>>> e5e76b3b2a0fdf429efdabb0dadacf274832997f
+
           DequeueProcess(RUNNINGQUEUE);
           QueueLength[RUNNINGQUEUE]--;
           EnqueueProcess(EXITQUEUE, pcb);
@@ -290,31 +286,19 @@ void Dispatcher() {
         }
     }
     else {
-		if (pcb->TimeInCpu == 0) { // metrics
-			pcb->StartCpuTime = Now();
-			NumberofJobs[RT]++;
-			NumberofJobs[CBT]++;
-		}
+		    if (pcb->TimeInCpu == 0) { // metrics
+			       pcb->StartCpuTime = Now();
+			          NumberofJobs[RT]++;
+			             NumberofJobs[CBT]++;
+		    }
   		OnCPU(pcb, pcb->CpuBurstTime);
-		pcb->TimeInCpu += pcb->CpuBurstTime;
+		  pcb->TimeInCpu += pcb->CpuBurstTime;
+    }
 
-		if (pcb->RemainingCpuBurstTime > 0) { //check for remaining CPU burst time for RR
-        	pcb->RemainingCpuBurstTime -= pcb->CpuBurstTime; //Subtract quantum from rem. CPU time.
-        		if (pcb->RemainingCpuBurstTime <= 0) { //check if job is finished. Dequeue if so
-          			DequeueProcess(RUNNINGQUEUE);
-          			QueueLength[RUNNINGQUEUE]--;
-          			EnqueueProcess(EXITQUEUE, pcb);
-        		}
-			else { //Processes who need more time go back to ready queue (Exclusive to Red Robin policy).
-            			DequeueProcess(RUNNINGQUEUE);
-            			EnqueueProcess(READYQUEUE, pcb);
-            			QueueLength[RUNNINGQUEUE]--;
-            			QueueLength[READYQUEUE]++;
-  			}
 		}
-	
-}}
+
 }
+
 
 /***********************************************************************\
 * Input : None                                                          *
