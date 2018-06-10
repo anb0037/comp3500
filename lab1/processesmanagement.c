@@ -267,15 +267,15 @@ void Dispatcher() {
                 QueueLength[EXITQUEUE]++;
   	}
     if (pcb->RemainingCpuBurstTime > 0) { //check for remaining CPU burst time for RR
-        pcb->RemainingCpuBurstTime -= pcb->CpuBurstTime //Subtract quantum from rem. CPU time.
+        pcb->RemainingCpuBurstTime -= pcb->CpuBurstTime; //Subtract quantum from rem. CPU time.
         if (pcb->RemainingCpuBurstTime <= 0) { //check if job is finished. Dequeue if so
           DequeueProcess(RUNNINGQUEUE);
           QueueLength[RUNNINGQUEUE]--;
-          EnqueueProcess(EXITQUEUE, pcb)
+          EnqueueProcess(EXITQUEUE, pcb);
         }
         else { //Processes who need more time go back to ready queue (Exclusive to Red Robin policy).
             DequeueProcess(RUNNINGQUEUE);
-            EnqueueProcess(READYQUEUE, pcb)
+            EnqueueProcess(READYQUEUE, pcb);
             QueueLength[RUNNINGQUEUE]--;
             QueueLength[READYQUEUE]++;
         }
@@ -288,8 +288,23 @@ void Dispatcher() {
 		}
   		OnCPU(pcb, pcb->CpuBurstTime);
 		pcb->TimeInCpu += pcb->CpuBurstTime;
-  	}
-  }
+
+		if (pcb->RemainingCpuBurstTime > 0) { //check for remaining CPU burst time for RR
+        	pcb->RemainingCpuBurstTime -= pcb->CpuBurstTime; //Subtract quantum from rem. CPU time.
+        		if (pcb->RemainingCpuBurstTime <= 0) { //check if job is finished. Dequeue if so
+          			DequeueProcess(RUNNINGQUEUE);
+          			QueueLength[RUNNINGQUEUE]--;
+          			EnqueueProcess(EXITQUEUE, pcb);
+        		}
+			else { //Processes who need more time go back to ready queue (Exclusive to Red Robin policy).
+            			DequeueProcess(RUNNINGQUEUE);
+            			EnqueueProcess(READYQUEUE, pcb);
+            			QueueLength[RUNNINGQUEUE]--;
+            			QueueLength[READYQUEUE]++;
+  			}
+		}
+	
+}}
 }
 
 /***********************************************************************\
