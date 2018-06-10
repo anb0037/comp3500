@@ -1,5 +1,4 @@
-
-/*****************************************************************************\
+/******************************************************************************\
 * Laboratory Exercises COMP 3500                                              *
 * Author: Saad Biaz                                                           *
 * Updated 5/22/2017 to distribute to students to do Lab 1                     *
@@ -113,11 +112,13 @@ void IO() {
     if (currentProcess->RemainingCpuBurstTime <= 0) { // Finished current CPU Burst
       currentProcess->TimeEnterWaiting = Now(); // Record when entered the waiting queue
       EnqueueProcess(WAITINGQUEUE, currentProcess); // Move to Waiting Queue
+      QueueLength[WAITINGQUEUE]++;
       currentProcess->TimeIOBurstDone = Now() + currentProcess->IOBurstTime; // Record when IO completes
       currentProcess->state = WAITING;
     } else { // Must return to Ready Queue
       currentProcess->JobStartTime = Now();
       EnqueueProcess(READYQUEUE, currentProcess); // Mobe back to Ready Queue
+      QueueLength[READYQUEUE]++;
       currentProcess->state = READY; // Update PCB state
     }
   }
@@ -129,14 +130,17 @@ void IO() {
   if (ProcessToMove){
     Identifier IDFirstProcess =ProcessToMove->ProcessID;
     EnqueueProcess(WAITINGQUEUE,ProcessToMove);
+    QueueLength[WAITINGQUEUE]++;
     ProcessToMove = DequeueProcess(WAITINGQUEUE);
     while (ProcessToMove){
       if (Now()>=ProcessToMove->TimeIOBurstDone){
 	ProcessToMove->RemainingCpuBurstTime = ProcessToMove->CpuBurstTime;
 	ProcessToMove->JobStartTime = Now();
 	EnqueueProcess(READYQUEUE,ProcessToMove);
+	QueueLength[READYQUEUE]++;
       } else {
 	EnqueueProcess(WAITINGQUEUE,ProcessToMove);
+        QueueLength[WAITINGQUEUE]++;
       }
       if (ProcessToMove->ProcessID == IDFirstProcess){
 	break;
@@ -161,8 +165,11 @@ void CPUScheduler(Identifier whichPolicy) {
     case RR   : selectedProcess = RR_Scheduler();
   }
   if (selectedProcess) {
+    selectedProcess->TimeInReadyQueue = Now() - selectedProcess->JobStartTime;
+    NumberofJobs[WT]++;
     selectedProcess->state = RUNNING; // Process state becomes Running
     EnqueueProcess(RUNNINGQUEUE, selectedProcess); // Put process in Running Queue
+    QueueLength[RUNNINGQUEUE]++;
   }
 }
 
@@ -179,6 +186,7 @@ ProcessControlBlock *FCFS_Scheduler() {
     return;
   }
   selectedProcess = DequeueProcess(READYQUEUE);
+  QueueLength[READYQUEUE]--;
   return(selectedProcess);
 }
 
@@ -197,17 +205,23 @@ ProcessControlBlock *SJF_Scheduler() {
   if (temp == NULL || topOfRunningQueue != NULL) {
 	return;
   }
-  int minDuration = temp->TotalJobDuration;
-  while (temp->previous != NULL) {
-    printf("%d\n", temp->ProcessID);
-    if (temp->TotalJobDuration < minDuration) {
-      minDuration = temp->TotalJobDuration;
-      printf("selecting pid: %d duration: %d", temp->ProcessID, temp->TotalJobDuration);
-      selectedProcess = temp;
-    }
-   temp = temp->previous;
+  TimePeriod minDuration = temp->TotalJobDuration;
+  int index;
+  for(index = 0; index < QueueLength[READYQUEUE]; index++) {
+  	temp = DequeueProcess(READYQUEUE);
+	if (temp->TotalJobDuration < minDuration) {
+		selectedProcess = temp;
+		minDuration = temp->TotalJobDuration;
+	}
+	EnqueueProcess(READYQUEUE, temp);
   }
-  RemoveFromQueue(selectedProcess, READYQUEUE);
+  // cycle through items in queue until selected item is at the front
+  while (selectedProcess != Queues[READYQUEUE].Tail) {
+     EnqueueProcess(READYQUEUE, DequeueProcess(READYQUEUE));
+  }
+  // remove selected process from ready queue
+  DequeueProcess(READYQUEUE);
+  QueueLength[READYQUEUE]--;
   return(selectedProcess);
 }
 
@@ -227,9 +241,8 @@ ProcessControlBlock *RR_Scheduler() {
   if (Quantum < selectedProcess->CpuBurstTime) {
       selectedProcess->CpuBurstTime = Quantum;
   }
-  EnqueueProcess(RUNNINGQUEUE, selectedProcess);
   DequeueProcess(READYQUEUE);
-  
+  QueueLength[READYQUEUE]--;
   return(selectedProcess);
 }
 
@@ -245,9 +258,22 @@ void Dispatcher() {
   ProcessControlBlock *pcb = Queues[RUNNINGQUEUE].Tail;
   if (pcb != NULL) {
   	if (pcb->TimeInCpu >= pcb->TotalJobDuration) {
-  		EnqueueProcess(EXITQUEUE, DequeueProcess(RUNNINGQUEUE));
+		pcb->JobExitTime = Now();
+		NumberofJobs[THGT]++;
+		NumberofJobs[TAT]++;
+		DequeueProcess(RUNNINGQUEUE);
+		QueueLength[RUNNINGQUEUE]--;
+  		EnqueueProcess(EXITQUEUE, pcb);
+                QueueLength[EXITQUEUE]++;
+		printf("Job moved to exit queue\n");
   	} else {
-  		OnCpu(pcb, pcb->CpuBurstTime);
+		if (pcb->TimeInCpu == 0) { // metrics
+			pcb->StartCpuTime = Now();
+			NumberofJobs[RT]++;
+			NumberofJobs[CBT]++;
+		}
+  		OnCPU(pcb, pcb->CpuBurstTime);
+		pcb->TimeInCpu += pcb->CpuBurstTime;
   	}
   }
 }
@@ -265,6 +291,8 @@ void NewJobIn(ProcessControlBlock whichProcess){
   NewProcess->TimeInCpu = 0; // Fixes TUX error
   NewProcess->RemainingCpuBurstTime = NewProcess->CpuBurstTime; // SB_ 6/4 Fixes RR
   EnqueueProcess(JOBQUEUE,NewProcess);
+  QueueLength[JOBQUEUE]++;
+  NewProcess->JobArrivalTime = Now();
   DisplayQueue("Job Queue in NewJobIn",JOBQUEUE);
   LongtermScheduler(); /* Job Admission  */
 }
@@ -289,25 +317,17 @@ void BookKeeping(void){
   // scan and record exit queue
   ProcessControlBlock *temp = Queues[EXITQUEUE].Tail;
   while (temp != NULL && temp->previous != NULL) {
-     NumberofJobs[THGT]++;
      SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
      SumMetrics[RT] += temp->JobStartTime - temp->JobArrivalTime;
      SumMetrics[CBT] += temp->TimeInCpu;
      SumMetrics[WT] += temp->TimeInReadyQueue;
      temp = temp->previous;
   }
-  if (temp != NULL) { // record last element of queue
-	NumberOfJobs[THGT]++; 
-  	SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
-  	SumMetrics[RT] += temp->JobStartTime - temp->JobArrivalTime;
-  	SumMetrics[WT] += temp->TimeInReadyQueue;
-  	SumMetrics[CBT] += temp->TimeInCpu;
-  }
-  if (NumberOfJobs[THGT] != 0) {
-	SumMetrics[TAT] /= NumberOfJobs[THGT];
-	SumMetrics[RT] /= NumberOfJobs[THGT];
-	SumMetrics[WT] /= NumberOfJobs[THGT];
-	CBT /= end;
+  if (NumberofJobs[THGT] != 0) {
+	SumMetrics[TAT] /= NumberofJobs[TAT];
+	SumMetrics[RT] /= NumberofJobs[RT];
+	SumMetrics[WT] /= NumberofJobs[WT];
+	SumMetrics[CBT] /= end;
   }
 
   printf("\n********* Processes Managemenent Numbers ******************************\n");
@@ -330,9 +350,11 @@ void BookKeeping(void){
 void LongtermScheduler(void){
   ProcessControlBlock *currentProcess = DequeueProcess(JOBQUEUE);
   while (currentProcess) {
+    QueueLength[JOBQUEUE]--;
     currentProcess->TimeInJobQueue = Now() - currentProcess->JobArrivalTime; // Set TimeInJobQueue
     currentProcess->JobStartTime = Now(); // Set JobStartTime
     EnqueueProcess(READYQUEUE,currentProcess); // Place process in Ready Queue
+    QueueLength[READYQUEUE]++;
     currentProcess->state = READY; // Update process state
     currentProcess = DequeueProcess(JOBQUEUE);
   }
@@ -344,6 +366,10 @@ void LongtermScheduler(void){
 * Output: TRUE if Intialization successful                              *
 \***********************************************************************/
 Flag ManagementInitialization(void){
+  Queue n;
+  for(n=JOBQUEUE; n < MAXQUEUES; n++) {
+     QueueLength[n] = 0;
+  }
   Metric m;
   for (m = TAT; m < MAXMETRICS; m++){
      NumberofJobs[m] = 0;
