@@ -273,7 +273,9 @@ void Dispatcher() {
         OnCPU(pcb, pcb->CpuBurstTime);
         pcb->TimeInCpu += pcb->CpuBurstTime;
         if (pcb->TimeInCpu >= pcb->TotalJobDuration) { //check if job is finished. Dequeue if so
-
+	  pcb->JobExitTime = Now();
+	  NumberofJobs[THGT]++;
+	  NumberofJobs[TAT]++;
           DequeueProcess(RUNNINGQUEUE);
           QueueLength[RUNNINGQUEUE]--;
           EnqueueProcess(EXITQUEUE, pcb);
