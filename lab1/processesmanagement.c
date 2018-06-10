@@ -183,7 +183,7 @@ ProcessControlBlock *FCFS_Scheduler() {
   ProcessControlBlock *selectedProcess = Queues[READYQUEUE].Tail;
   ProcessControlBlock *topOfRunningQueue = Queues[RUNNINGQUEUE].Tail;
   if (selectedProcess == NULL  || topOfRunningQueue != NULL) {
-    return;
+    return NULL;
   }
   selectedProcess = DequeueProcess(READYQUEUE);
   QueueLength[READYQUEUE]--;
@@ -203,7 +203,7 @@ ProcessControlBlock *SJF_Scheduler() {
   ProcessControlBlock *topOfRunningQueue = Queues[RUNNINGQUEUE].Tail;
   ProcessControlBlock *selectedProcess = temp;
   if (temp == NULL || topOfRunningQueue != NULL) {
-	return;
+	return NULL;
   }
   TimePeriod minDuration = temp->TotalJobDuration;
   int index;
@@ -256,6 +256,8 @@ ProcessControlBlock *RR_Scheduler() {
 void Dispatcher() {
   double start;
   ProcessControlBlock *pcb = Queues[RUNNINGQUEUE].Tail;
+  /////
+
   if (pcb != NULL) {
   	if (pcb->TimeInCpu >= pcb->TotalJobDuration) {
 		pcb->JobExitTime = Now();
@@ -266,16 +268,17 @@ void Dispatcher() {
   		EnqueueProcess(EXITQUEUE, pcb);
                 QueueLength[EXITQUEUE]++;
   	}
-    if (pcb->RemainingCpuBurstTime > 0) { //check for remaining CPU burst time for RR
-        pcb->RemainingCpuBurstTime -= pcb->CpuBurstTime //Subtract quantum from rem. CPU time.
-        if (pcb->RemainingCpuBurstTime <= 0) { //check if job is finished. Dequeue if so
+    if (pcb->TimeInCpu > 0 && (pcb->TotalJobDuration - pcb->TimeInCpu) > 0) { //check for remaining CPU Job time for RR
+        OnCPU(pcb, pcb->CpuBurstTime);
+        pcb->TimeInCpu += pcb->CpuBurstTime;
+        if (pcb->TimeInCpu >= pcb->TotalJobDuration) { //check if job is finished. Dequeue if so
           DequeueProcess(RUNNINGQUEUE);
           QueueLength[RUNNINGQUEUE]--;
-          EnqueueProcess(EXITQUEUE, pcb)
+          EnqueueProcess(EXITQUEUE, pcb);
         }
         else { //Processes who need more time go back to ready queue (Exclusive to Red Robin policy).
             DequeueProcess(RUNNINGQUEUE);
-            EnqueueProcess(READYQUEUE, pcb)
+            EnqueueProcess(READYQUEUE, pcb);
             QueueLength[RUNNINGQUEUE]--;
             QueueLength[READYQUEUE]++;
         }
