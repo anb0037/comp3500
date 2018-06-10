@@ -265,7 +265,6 @@ void Dispatcher() {
 		QueueLength[RUNNINGQUEUE]--;
   		EnqueueProcess(EXITQUEUE, pcb);
                 QueueLength[EXITQUEUE]++;
-		printf("Job moved to exit queue\n");
   	} else {
 		if (pcb->TimeInCpu == 0) { // metrics
 			pcb->StartCpuTime = Now();
@@ -315,13 +314,35 @@ void BookKeeping(void){
   double end = Now(); // Total time for all processes to arrive
   Metric m;
   // scan and record exit queue
-  ProcessControlBlock *temp = Queues[EXITQUEUE].Tail;
-  while (temp != NULL && temp->previous != NULL) {
-     SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
+  ProcessControlBlock *temp;
+  int i;
+  for(i = 0; i < QueueLength[EXITQUEUE]; i++) {
+	 temp = Queues[EXITQUEUE].Tail;
+	 SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
      SumMetrics[RT] += temp->JobStartTime - temp->JobArrivalTime;
      SumMetrics[CBT] += temp->TimeInCpu;
      SumMetrics[WT] += temp->TimeInReadyQueue;
-     temp = temp->previous;
+     EnqueueProcess(EXITQUEUE, DequeueProcess(EXITQUEUE));
+  }
+  for(i = 0; i < QueueLength[WAITINGQUEUE]; i++) {
+	 temp = Queues[WAITINGQUEUE].Tail;
+     SumMetrics[RT] += temp->JobStartTime - temp->JobArrivalTime;
+     SumMetrics[CBT] += temp->TimeInCpu;
+     SumMetrics[WT] += temp->TimeInReadyQueue;
+     EnqueueProcess(WAITINGQUEUE, DequeueProcess(WAITINGQUEUE));
+  }
+  for(i = 0; i < QueueLength[RUNNINGQUEUE]; i++) {
+	 temp = Queues[RUNNINGQUEUE].Tail;
+     SumMetrics[RT] += temp->JobStartTime - temp->JobArrivalTime;
+     SumMetrics[CBT] += temp->TimeInCpu;
+     SumMetrics[WT] += temp->TimeInReadyQueue;
+     EnqueueProcess(RUNNINGQUEUE, DequeueProcess(RUNNINGQUEUE));
+  }
+  for(i = 0; i < QueueLength[READYQUEUE]; i++) {
+	 temp = Queues[READYQUEUE].Tail;
+     SumMetrics[CBT] += temp->TimeInCpu;
+     SumMetrics[WT] += temp->TimeInReadyQueue;
+     EnqueueProcess(READYQUEUE, DequeueProcess(READYQUEUE));
   }
   if (NumberofJobs[THGT] != 0) {
 	SumMetrics[TAT] /= NumberofJobs[TAT];
@@ -367,7 +388,7 @@ void LongtermScheduler(void){
 \***********************************************************************/
 Flag ManagementInitialization(void){
   Queue n;
-  for(n=JOBQUEUE; n < MAXQUEUES; n++) {
+  for(n = JOBQUEUE; n < MAXQUEUES; n++) {
      QueueLength[n] = 0;
   }
   Metric m;
