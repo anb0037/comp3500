@@ -42,9 +42,6 @@ int SizeOfRunningQueue;
 *                                  Global data                                *
 \*****************************************************************************/
 
-int SizeOfRunningQueue;
-int SizeOfReadyQueue;
-
 Quantity NumberofJobs[MAXMETRICS]; // Number of Jobs for which metric was collected
 Average  SumMetrics[MAXMETRICS]; // Sum for each Metrics
 
@@ -170,15 +167,16 @@ void CPUScheduler(Identifier whichPolicy) {
 /***********************************************************************\
  * Input : None                                                         *
  * Output: Pointer to the process based on First Come First Serve (FCFS)*
- * Function: Returns process control block based on FCFS                *                                                \***********************************************************************/
+ * Function: Returns process control block based on FCFS                *
+ \***********************************************************************/
 ProcessControlBlock *FCFS_Scheduler() {
   /* Select Process based on FCFS */
   ProcessControlBlock *selectedProcess = Queues[READYQUEUE].Tail;
-  if (selectedProcess == NULL  || SizeOfRunningQueue >= 1) {
+  ProcessControlBlock *topOfRunningQueue = Queues[RUNNINGQUEUE].Tail;
+  if (selectedProcess == NULL  || topOfRunningQueue != NULL) {
     return;
   }
   selectedProcess = DequeueProcess(READYQUEUE);
-  SizeOfReadyQueue--;
   return(selectedProcess);
 }
 
@@ -189,20 +187,35 @@ ProcessControlBlock *FCFS_Scheduler() {
  * Output: Pointer to the process with shortest remaining time (SJF)   *
  * Function: Returns process control block with SJF                    *
 \***********************************************************************/
-ProcessControlBlock *SJF_Scheduler() {
-   /* Select Process with Shortest Remaining Time*/
+ProcessControlBlock *SJF_Scheduler() {  
+ /* Select Process with Shortest Remaining Time*/
   ProcessControlBlock *temp = Queues[READYQUEUE].Tail;
-  ProcessControlBlock *selectedProcess;
-  if (temp == NULL || SizeOfReadyQueue >= 1) {
-    return;
+  ProcessControlBlock *topOfRunningQueue = Queues[RUNNINGQUEUE].Tail;
+  ProcessControlBlock *selectedProcess = temp;
+
+  if (temp == NULL || topOfRunningQueue != NULL) {
+	return;
   }
+
   int minRemTime = temp->CpuBurstTime;
   while (temp->previous != NULL) {
     if (temp->CpuBurstTime < minRemTime) {
       minRemTime = temp->CpuBurstTime;
       *selectedProcess = *temp;
     }
-    temp = temp->previous;
+   temp = temp->previous;
+  }
+
+  if (selectedProcess->previous != NULL) { // remove selectedProcess from readyQueue manually
+   if (selectedProcess->next != NULL) { // condition passes if selectedProcess is in middle of queue
+        selectedProcess->previous->next = selectedProcess->next;
+        selectedProcess->next->previous = selectedProcess->previous;
+     } else { // condition passes if selectedProcess is at the tail of the queue
+       Queues[READYQUEUE].Tail = selectedProcess->previous;
+     }
+  } else { // condition passes if selectedProcess it at head of queue
+     Queues[READYQUEUE].Head = selectedProcess->next;
+     temp = temp->previous;
   }
   return(selectedProcess);
 }
@@ -211,23 +224,21 @@ ProcessControlBlock *SJF_Scheduler() {
 /***********************************************************************\
  * Input : None                                                         *
  * Output: Pointer to the process based on Round Robin (RR)             *
- * Function: Returns process control block based on RR                  *                                              \
+ * Function: Returns process control block based on RR                  *   
  \***********************************************************************/
-ProcessControlBlock *RR_Scheduler() { //testing dumbshit
+ProcessControlBlock *RR_Scheduler() {
   /* Select Process based on RR*/
-  ProcessControlBlock *selectedProcess;
-  ProcessControlBlock *temp = Queues[READYQUEUE].Tail;
-  if (temp == NULL || SizeOfRunningQueue >= 1) {
+  ProcessControlBlock *selectedProcess = Queues[READYQUEUE].Tail;
+  ProcessControlBlock *topOfRunningQueue = Queues[RUNNINGQUEUE].Tail;
+  if (selectedProcess == NULL || topOfRunningQueue != NULL) {
       return NULL;
   }
-  if (Quantum < temp->CpuBurstTime) {
-      temp->CpuBurstTime = Quantum;
+  if (Quantum < selectedProcess->CpuBurstTime) {
+      selectedProcess->CpuBurstTime = Quantum;
   }
-  *selectedProcess = *temp;
-  EnqueueProcess(RUNNINGQUEUE, *selectedProcess);
-
-  // Implement code for RR
-
+  EnqueueProcess(RUNNINGQUEUE, selectedProcess);
+  DequeueProcess(READYQUEUE);
+  
   return(selectedProcess);
 }
 
@@ -240,7 +251,6 @@ ProcessControlBlock *RR_Scheduler() { //testing dumbshit
 \***********************************************************************/
 void Dispatcher() {
   double start;
-  //
 }
 
 /***********************************************************************\
@@ -269,17 +279,26 @@ void NewJobIn(ProcessControlBlock whichProcess){
 *     and CPU Utilization                                              *
 \***********************************************************************/
 void BookKeeping(void){
+  printf("here1\n");
   double end = Now(); // Total time for all processes to arrive
   Metric m;
-
-  // Compute averages and final results
-  // ........
+  ProcessControlBlock *temp = Queues[EXITQUEUE].Tail;
+  int completedProcesses = 0;
+  printf("here2\n");
+  while (temp != NULL && temp->previous != NULL) {
+     printf("here");
+     completedProcesses++;
+     printf("here3\n");
+     temp = temp->previous;
+     printf("here4\n");
+  }
+  printf("here5\n");
 
   printf("\n********* Processes Managemenent Numbers ******************************\n");
   printf("Policy Number = %d, Quantum = %.6f   Show = %d\n", PolicyNumber, Quantum, Show);
-  printf("Number of Completed Processes = %d\n", NumberofJobs[THGT]);
-  printf("ATAT=%f   ART=%f  CBT = %f  T=%f AWT=%f\n",
-	 SumMetrics[TAT], SumMetrics[RT], SumMetrics[CBT],
+  printf("Number of Completed Processes = %d\n", completedProcesses);
+  printf("ATAT=%f   ART=%f  CBT = %f  T=%f AWT=%f\n", 
+	 SumMetrics[TAT], SumMetrics[RT], SumMetrics[CBT], 
 	 NumberofJobs[THGT]/Now(), SumMetrics[WT]);
 
   exit(0);
@@ -298,7 +317,6 @@ void LongtermScheduler(void){
     currentProcess->TimeInJobQueue = Now() - currentProcess->JobArrivalTime; // Set TimeInJobQueue
     currentProcess->JobStartTime = Now(); // Set JobStartTime
     EnqueueProcess(READYQUEUE,currentProcess); // Place process in Ready Queue
-    SizeOfReadyQueue++;
     currentProcess->state = READY; // Update process state
     currentProcess = DequeueProcess(JOBQUEUE);
   }
@@ -310,8 +328,6 @@ void LongtermScheduler(void){
 * Output: TRUE if Intialization successful                              *
 \***********************************************************************/
 Flag ManagementInitialization(void){
-  SizeOfReadyQueue = 0;
-  SizeOfRunningQueue = 0;
   Metric m;
   SizeOfRunningQueue = 0;
   for (m = TAT; m < MAXMETRICS; m++){
