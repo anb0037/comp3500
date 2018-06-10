@@ -53,7 +53,6 @@ void                 ManageProcesses(void);
 void                 NewJobIn(ProcessControlBlock whichProcess);
 void                 BookKeeping(void);
 Flag                 ManagementInitialization(void);
-Flag				 RemoveFromQueue(ProcessControlBlock *pcb, Queue whichQueue);
 void                 LongtermScheduler(void);
 void                 IO();
 void                 CPUScheduler(Identifier whichPolicy);
@@ -256,50 +255,31 @@ ProcessControlBlock *RR_Scheduler() {
 void Dispatcher() {
   double start;
   ProcessControlBlock *pcb = Queues[RUNNINGQUEUE].Tail;
-  /////
-
-  if (pcb != NULL) {
-  	/*if (pcb->TimeInCpu >= pcb->TotalJobDuration) {
-		pcb->JobExitTime = Now();
-		NumberofJobs[THGT]++;
-		NumberofJobs[TAT]++;
-		DequeueProcess(RUNNINGQUEUE);
-		QueueLength[RUNNINGQUEUE]--;
-  		EnqueueProcess(EXITQUEUE, pcb);
-                QueueLength[EXITQUEUE]++;
-  	}*/
-
-    if (pcb->TimeInCpu > 0 && (pcb->TotalJobDuration - pcb->TimeInCpu) > 0) { //check for remaining CPU Job time for RR
-        OnCPU(pcb, pcb->CpuBurstTime);
-        pcb->TimeInCpu += pcb->CpuBurstTime;
-        if (pcb->TimeInCpu >= pcb->TotalJobDuration) { //check if job is finished. Dequeue if so
-	          pcb->JobExitTime = Now();
-	          NumberofJobs[THGT]++;
-	          NumberofJobs[TAT]++;
-            DequeueProcess(RUNNINGQUEUE);
-            QueueLength[RUNNINGQUEUE]--;
-            EnqueueProcess(EXITQUEUE, pcb);
-            QueueLength[EXITQUEUE]++;
-        }
-        else { //Processes who need more time go back to ready queue (Exclusive to Red Robin policy).
-            DequeueProcess(RUNNINGQUEUE);
-            EnqueueProcess(READYQUEUE, pcb);
-            QueueLength[RUNNINGQUEUE]--;
-            QueueLength[READYQUEUE]++;
-        }
+  if (pcb != NULL) { 
+    if (pcb->TimeInCpu >= pcb->TotalJobDuration) { // handles processes that have completed
+	    pcb->JobExitTime = Now();
+	    NumberofJobs[THGT]++;
+	    NumberofJobs[TAT]++;
+        DequeueProcess(RUNNINGQUEUE);
+        QueueLength[RUNNINGQUEUE]--;
+        EnqueueProcess(EXITQUEUE, pcb);
+        QueueLength[EXITQUEUE]++;
     }
-    else {
-		    if (pcb->TimeInCpu == 0) { // metrics
-			       pcb->StartCpuTime = Now();
-			          NumberofJobs[RT]++;
-			             NumberofJobs[CBT]++;
-		    }
+    else if (PolicyNumber == 3 && pcb->TimeInCpu >= pcb->CpuBurstTime) { // handles RR processes that aren't complete
+        DequeueProcess(RUNNINGQUEUE);
+        EnqueueProcess(READYQUEUE, pcb);
+        QueueLength[RUNNINGQUEUE]--;
+        QueueLength[READYQUEUE]++;
+    }
+    else { // handles processes that still need computation
+    	if (pcb->TimeInCpu == 0) {
+    		pcb->StartCpuTime = Now();
+    		NumberofJobs[RT]++;
+    	}
   		OnCPU(pcb, pcb->CpuBurstTime);
-		  pcb->TimeInCpu += pcb->CpuBurstTime;
+		pcb->TimeInCpu += pcb->CpuBurstTime;
     }
-
-		}
-
+  }
 }
 
 
@@ -423,26 +403,4 @@ Flag ManagementInitialization(void){
      SumMetrics[m]   = 0.0;
   }
   return TRUE;
-}
-
-/***************************************************\
-* Input : pointer to selected ProcessControlBlock   *
-* 		  Which queue to perform the removal on     *
-* Output: TRUE if removal is successful             *
-\***************************************************/
-Flag RemoveFromQueue(ProcessControlBlock *pcb, Queue whichQueue) {
-	if (pcb != NULL && pcb->previous != NULL) {
-   		if (pcb->next != NULL) { // condition passes if selectedProcess is in middle of queue
-        	pcb->previous->next = pcb->next;
-        	pcb->next->previous = pcb->previous;
-     	} else { // condition passes if selectedProcess is at the tail of the queue
-       		Queues[whichQueue].Tail = pcb->previous;
-     	}
-  	} else if (pcb != NULL) { // condition passes if selectedProcess it at head of queue
-    	Queues[whichQueue].Head = pcb->next;
-  	} else {
-  		return FALSE;
-  	}
-
-  	return TRUE;
 }
