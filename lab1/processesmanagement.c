@@ -256,7 +256,7 @@ void Dispatcher() {
   ProcessControlBlock *pcb = Queues[RUNNINGQUEUE].Tail;
   if (pcb != NULL) { 
     if (pcb->TimeInCpu >= pcb->TotalJobDuration) { // handles processes that have completed
-	    
+	    printf("pid %d exited\n",pcb->ProcessID);
 	    pcb->JobExitTime = Now();
 	    pcb->state = DONE;
 	    NumberofJobs[THGT]++;
@@ -267,11 +267,15 @@ void Dispatcher() {
         QueueLength[EXITQUEUE]++;
     }
     else if (PolicyNumber == 3) { // handles RR processes that aren't complete
-        printf("kicking off pid %d after quantum %f total time: %f\n",pcb->ProcessID, pcb->CpuBurstTime, pcb->TimeInCpu); 
-        DequeueProcess(RUNNINGQUEUE);
-        EnqueueProcess(READYQUEUE, pcb);
-        QueueLength[RUNNINGQUEUE]--;
-        QueueLength[READYQUEUE]++;
+        OnCPU(pcb, pcb->CpuBurstTime);
+    	pcb->TimeInCpu += pcb->CpuBurstTime;
+    	printf("kicking off pid %d after quantum %f total time: %f\n",pcb->ProcessID, pcb->CpuBurstTime, pcb->TimeInCpu); 
+        if (pcb->TimeInCpu <= pcb->TotalJobDuration) {
+        	DequeueProcess(RUNNINGQUEUE);
+        	EnqueueProcess(READYQUEUE, pcb);
+        	QueueLength[RUNNINGQUEUE]--;
+        	QueueLength[READYQUEUE]++;
+        }
     }
     else { // handles processes that still need computation
     	printf("adding %f to pid %d\n", pcb->CpuBurstTime, pcb->ProcessID);
