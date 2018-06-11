@@ -164,6 +164,9 @@ void CPUScheduler(Identifier whichPolicy) {
     case RR   : selectedProcess = RR_Scheduler();
   }
   if (selectedProcess) {
+  	if(selectedProcess->TimeInReadyQueue == 0) { // if entering running queue for the first time
+  		NumberofJobs[WT]++;
+  	}
     selectedProcess->TimeInReadyQueue += Now() - selectedProcess->JobStartTime;
     selectedProcess->state = RUNNING; // Process state becomes Running
     EnqueueProcess(RUNNINGQUEUE, selectedProcess); // Put process in Running Queue
@@ -275,13 +278,14 @@ void Dispatcher() {
     	pcb->TimeInCpu += pcb->CpuBurstTime;
     	printf("kicking off pid %d after quantum %f total time: %f\n",pcb->ProcessID, pcb->CpuBurstTime, pcb->TimeInCpu); 
         if (pcb->TimeInCpu <= pcb->TotalJobDuration) {
+        	pcb->JobStartTime = Now();
         	DequeueProcess(RUNNINGQUEUE);
         	EnqueueProcess(READYQUEUE, pcb);
         	QueueLength[RUNNINGQUEUE]--;
         	QueueLength[READYQUEUE]++;
         }
     }
-    else { // handles processes that still need computation
+    else { // handles non-RR processes that still need computation
     	printf("adding %f to pid %d\n", pcb->CpuBurstTime, pcb->ProcessID);
     	if (pcb->TimeInCpu == 0) {
     		pcb->StartCpuTime = Now();
