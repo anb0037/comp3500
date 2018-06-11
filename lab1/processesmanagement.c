@@ -164,7 +164,7 @@ void CPUScheduler(Identifier whichPolicy) {
     case RR   : selectedProcess = RR_Scheduler();
   }
   if (selectedProcess) {
-  	if(selectedProcess->TimeInReadyQueue == 0) { // if entering running queue for the first time
+  	if(selectedProcess->TimeInReadyQueue == 0) {
   		NumberofJobs[WT]++;
   	}
     selectedProcess->TimeInReadyQueue += Now() - selectedProcess->JobStartTime;
@@ -264,6 +264,7 @@ void Dispatcher() {
 	    pcb->state = DONE;
 	    NumberofJobs[THGT]++;
 	    NumberofJobs[TAT]++;
+		SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
         DequeueProcess(RUNNINGQUEUE);
         QueueLength[RUNNINGQUEUE]--;
         EnqueueProcess(EXITQUEUE, pcb);
@@ -273,6 +274,7 @@ void Dispatcher() {
         if (pcb->TimeInCpu == 0) {
         	pcb->StartCpuTime = Now();
     		NumberofJobs[RT]++;
+			SumMetrics[RT] += temp->StartCpuTime - temp->JobArrivalTime;
         }
         OnCPU(pcb, pcb->CpuBurstTime);
     	pcb->TimeInCpu += pcb->CpuBurstTime;
@@ -290,6 +292,7 @@ void Dispatcher() {
     	if (pcb->TimeInCpu == 0) {
     		pcb->StartCpuTime = Now();
     		NumberofJobs[RT]++;
+			SumMetrics[RT] += temp->StartCpuTime - temp->JobArrivalTime;
     	}
   		OnCPU(pcb, pcb->CpuBurstTime);
 		pcb->TimeInCpu += pcb->CpuBurstTime;
@@ -339,22 +342,18 @@ void BookKeeping(void){
   int i;
   for(i = 0; i < QueueLength[EXITQUEUE]; i++) {
 	 temp = Queues[EXITQUEUE].Tail;
-	 SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
-     SumMetrics[RT] += temp->JobStartTime - temp->JobArrivalTime;
      SumMetrics[CBT] += temp->TimeInCpu;
      SumMetrics[WT] += temp->TimeInReadyQueue;
      EnqueueProcess(EXITQUEUE, DequeueProcess(EXITQUEUE));
   }
   for(i = 0; i < QueueLength[WAITINGQUEUE]; i++) {
 	 temp = Queues[WAITINGQUEUE].Tail;
-     SumMetrics[RT] += temp->JobStartTime - temp->JobArrivalTime;
      SumMetrics[CBT] += temp->TimeInCpu;
      SumMetrics[WT] += temp->TimeInReadyQueue;
      EnqueueProcess(WAITINGQUEUE, DequeueProcess(WAITINGQUEUE));
   }
   for(i = 0; i < QueueLength[RUNNINGQUEUE]; i++) {
 	 temp = Queues[RUNNINGQUEUE].Tail;
-     SumMetrics[RT] += temp->JobStartTime - temp->JobArrivalTime;
      SumMetrics[CBT] += temp->TimeInCpu;
      SumMetrics[WT] += temp->TimeInReadyQueue;
      EnqueueProcess(RUNNINGQUEUE, DequeueProcess(RUNNINGQUEUE));
@@ -366,7 +365,7 @@ void BookKeeping(void){
      EnqueueProcess(READYQUEUE, DequeueProcess(READYQUEUE));
   }
   if (NumberofJobs[THGT] != 0) {
-	SumMetrics[TAT] /= NumberofJobs[TAT];
+	SumMetrics[TAT] /= QueueLength[EXITQUEUE];
 	SumMetrics[RT] /= NumberofJobs[RT];
 	SumMetrics[WT] /= NumberofJobs[WT];
 	SumMetrics[CBT] /= end;
