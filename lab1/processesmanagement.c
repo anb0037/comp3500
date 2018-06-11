@@ -267,6 +267,10 @@ void Dispatcher() {
         QueueLength[EXITQUEUE]++;
     }
     else if (PolicyNumber == 3) { // handles RR processes that aren't complete
+        if (pcb->TimeInCpu == 0) {
+        	pcb->StartCpuTime = Now();
+    		NumberofJobs[RT]++;
+        }
         OnCPU(pcb, pcb->CpuBurstTime);
     	pcb->TimeInCpu += pcb->CpuBurstTime;
     	printf("kicking off pid %d after quantum %f total time: %f\n",pcb->ProcessID, pcb->CpuBurstTime, pcb->TimeInCpu); 
