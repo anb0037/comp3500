@@ -254,17 +254,17 @@ ProcessControlBlock *RR_Scheduler() {
  *  1)If process in Running Queue needs computation, put it on CPU      *
  *              else move process from running queue to Exit Queue      *
 \***********************************************************************/
-void Dispatcher() {
+void 
+Dispatcher() {
   double start;
   ProcessControlBlock *pcb = Queues[RUNNINGQUEUE].Tail;
   if (pcb != NULL) { 
     if (pcb->TimeInCpu >= pcb->TotalJobDuration) { // handles processes that have completed
-	    printf("pid %d exited\n",pcb->ProcessID);
-	    pcb->JobExitTime = Now();
-	    pcb->state = DONE;
-	    NumberofJobs[THGT]++;
-	    NumberofJobs[TAT]++;
-		SumMetrics[TAT] += temp->JobExitTime - temp->JobArrivalTime;
+	pcb->JobExitTime = Now();
+	pcb->state = DONE;
+	NumberofJobs[THGT]++;
+	NumberofJobs[TAT]++;
+	SumMetrics[TAT] += pcb->JobExitTime - pcb->JobArrivalTime;
         DequeueProcess(RUNNINGQUEUE);
         QueueLength[RUNNINGQUEUE]--;
         EnqueueProcess(EXITQUEUE, pcb);
@@ -274,11 +274,11 @@ void Dispatcher() {
         if (pcb->TimeInCpu == 0) {
         	pcb->StartCpuTime = Now();
     		NumberofJobs[RT]++;
-			SumMetrics[RT] += temp->StartCpuTime - temp->JobArrivalTime;
+		SumMetrics[RT] += pcb->StartCpuTime - pcb->JobArrivalTime;
         }
         OnCPU(pcb, pcb->CpuBurstTime);
     	pcb->TimeInCpu += pcb->CpuBurstTime;
-    	printf("kicking off pid %d after quantum %f total time: %f\n",pcb->ProcessID, pcb->CpuBurstTime, pcb->TimeInCpu); 
+    	SumMetrics[CBT] += pcb->CpuBurstTime; 
         if (pcb->TimeInCpu <= pcb->TotalJobDuration) {
         	pcb->JobStartTime = Now();
         	DequeueProcess(RUNNINGQUEUE);
@@ -288,14 +288,14 @@ void Dispatcher() {
         }
     }
     else { // handles non-RR processes that still need computation
-    	printf("adding %f to pid %d\n", pcb->CpuBurstTime, pcb->ProcessID);
     	if (pcb->TimeInCpu == 0) {
     		pcb->StartCpuTime = Now();
     		NumberofJobs[RT]++;
-			SumMetrics[RT] += temp->StartCpuTime - temp->JobArrivalTime;
+		SumMetrics[RT] += pcb->StartCpuTime - pcb->JobArrivalTime;
     	}
   		OnCPU(pcb, pcb->CpuBurstTime);
 		pcb->TimeInCpu += pcb->CpuBurstTime;
+		SumMetrics[CBT] += pcb->CpuBurstTime;
     }
   }
 }
@@ -341,26 +341,22 @@ void BookKeeping(void){
   ProcessControlBlock *temp;
   int i;
   for(i = 0; i < QueueLength[EXITQUEUE]; i++) {
-	 temp = Queues[EXITQUEUE].Tail;
-     SumMetrics[CBT] += temp->TimeInCpu;
+     temp = Queues[EXITQUEUE].Tail;
      SumMetrics[WT] += temp->TimeInReadyQueue;
      EnqueueProcess(EXITQUEUE, DequeueProcess(EXITQUEUE));
   }
   for(i = 0; i < QueueLength[WAITINGQUEUE]; i++) {
 	 temp = Queues[WAITINGQUEUE].Tail;
-     SumMetrics[CBT] += temp->TimeInCpu;
      SumMetrics[WT] += temp->TimeInReadyQueue;
      EnqueueProcess(WAITINGQUEUE, DequeueProcess(WAITINGQUEUE));
   }
   for(i = 0; i < QueueLength[RUNNINGQUEUE]; i++) {
 	 temp = Queues[RUNNINGQUEUE].Tail;
-     SumMetrics[CBT] += temp->TimeInCpu;
      SumMetrics[WT] += temp->TimeInReadyQueue;
      EnqueueProcess(RUNNINGQUEUE, DequeueProcess(RUNNINGQUEUE));
   }
   for(i = 0; i < QueueLength[READYQUEUE]; i++) {
 	 temp = Queues[READYQUEUE].Tail;
-     SumMetrics[CBT] += temp->TimeInCpu;
      SumMetrics[WT] += temp->TimeInReadyQueue;
      EnqueueProcess(READYQUEUE, DequeueProcess(READYQUEUE));
   }
