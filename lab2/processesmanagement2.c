@@ -309,10 +309,14 @@ void BookKeeping(void){
 void LongtermScheduler(void){
   ProcessControlBlock *currentProcess = DequeueProcess(JOBQUEUE);
   while (currentProcess) {
-    currentProcess->TimeInJobQueue = Now() - currentProcess->JobArrivalTime; // Set TimeInJobQueue
-    currentProcess->JobStartTime = Now(); // Set JobStartTime
-    EnqueueProcess(READYQUEUE,currentProcess); // Place process in Ready Queue
-    currentProcess->state = READY; // Update process state
+    if (AvailableMemory >= currentProcess->MemoryRequested) {
+       currentProcess->TimeInJobQueue = Now();
+       currentProcess->JobStartTime = Now();
+       EnqueueProcess(READYQUEUE, currentProcess);
+       currentProcess->state = READY;
+       AvailableMemory -= currentProcess->MemoryRequested;
+       currentProcess->MemoryAllocated = currentProcess->MemoryRequested;   
+    }
     currentProcess = DequeueProcess(JOBQUEUE);
   }
 }
