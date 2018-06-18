@@ -6,7 +6,7 @@ tail out/out1 -n 5 >> out/complete
 
 echo "executing pm (SRTF)"
 ./pm 2 > out/out2 
-tail out/out2-n 5 >> out/complete
+tail out/out2 -n 5 >> out/complete
 
 echo "executing pm (RR) quantum 10ms"
 ./pm 3 10 > out/out3
