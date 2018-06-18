@@ -1,4 +1,5 @@
-rmdir -rf out
+rm out/*
+rmdir out
 mkdir out
 echo "executing pm (FCFS)"
 ./pm 1 > out/out1 
