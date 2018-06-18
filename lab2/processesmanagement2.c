@@ -18,7 +18,7 @@
 *                             Global data types                               *
 \*****************************************************************************/
 
-typedef enum {TAT,RT,CBT,THGT,WT} Metric;
+typedef enum {TAT,RT,CBT,THGT,WT,WTJQ} Metric;
 
 
 /*****************************************************************************\
@@ -29,7 +29,7 @@ typedef enum {TAT,RT,CBT,THGT,WT} Metric;
 #define RR              3 
 
 
-#define MAXMETRICS      5 
+#define MAXMETRICS      6
 
 
 
@@ -288,13 +288,17 @@ void BookKeeping(void){
   if (NumberofJobs[WT] > 0){
     SumMetrics[WT] = SumMetrics[WT]/ (Average) NumberofJobs[WT];
   }
+  
+  if (NumberofJobs[WTJQ] > 0){
+    SumMetrics[WTJQ] = SumMetrics[WTJQ] / (Average) NumberofJobs[WTJQ];
+  }
 
   printf("\n********* Processes Managemenent Numbers ******************************\n");
   printf("Policy Number = %d, Quantum = %.6f   Show = %d\n", PolicyNumber, Quantum, Show);
   printf("Number of Completed Processes = %d\n", NumberofJobs[THGT]);
-  printf("ATAT=%f   ART=%f  CBT = %f  T=%f AWT=%f\n", 
+  printf("ATAT=%f   ART=%f  CBT = %f  T=%f AWT=%f\n  AWTJQ=%f\n", 
 	 SumMetrics[TAT], SumMetrics[RT], SumMetrics[CBT], 
-	 NumberofJobs[THGT]/Now(), SumMetrics[WT]);
+	 NumberofJobs[THGT]/Now(), SumMetrics[WT], SumMetrics[WTJQ]);
 
   exit(0);
 }
@@ -310,7 +314,9 @@ void LongtermScheduler(void){
   ProcessControlBlock *currentProcess = DequeueProcess(JOBQUEUE);
   while (currentProcess) {
     if (AvailableMemory >= currentProcess->MemoryRequested) {
-       currentProcess->TimeInJobQueue = Now();
+       currentProcess->TimeInJobQueue = Now() - currentProcess->JobArrivalTime;
+       SumMetrics[WTJQ] += currentProcess->TimeInJobQueue;
+       NumberofJobs[WTJQ]++;
        currentProcess->JobStartTime = Now();
        EnqueueProcess(READYQUEUE, currentProcess);
        currentProcess->state = READY;
