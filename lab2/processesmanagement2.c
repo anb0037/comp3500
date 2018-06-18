@@ -19,7 +19,7 @@
 \*****************************************************************************/
 
 typedef enum {TAT,RT,CBT,THGT,WT,WTJQ} Metric;
-
+typedef enum {INFINITE,OMAP,BESTFIT,WORSTFIT} MemoryPolicy;
 
 /*****************************************************************************\
 *                             Global definitions                              *
@@ -46,6 +46,7 @@ typedef enum {TAT,RT,CBT,THGT,WT,WTJQ} Metric;
 
 Quantity NumberofJobs[MAXMETRICS]; // Number of Jobs for which metric was collected
 Average  SumMetrics[MAXMETRICS]; // Sum for each Metrics
+const MemoryPolicy policy = OMAP; // Policy selection
 
 /*****************************************************************************\
 *                               Function prototypes                           *
@@ -216,8 +217,10 @@ void Dispatcher() {
 	  processOnCPU->ProcessID,NumberofJobs[THGT]);
     processOnCPU=DequeueProcess(RUNNINGQUEUE);
     EnqueueProcess(EXITQUEUE,processOnCPU);
-    AvailableMemory += processOnCPU->MemoryAllocated;
-    processOnCPU->MemoryAllocated = 0;
+    if (policy == OMAP) {
+        AvailableMemory += processOnCPU->MemoryAllocated;
+        processOnCPU->MemoryAllocated = 0;
+    } 
 
     NumberofJobs[THGT]++;
     NumberofJobs[TAT]++;
@@ -322,8 +325,15 @@ void LongtermScheduler(void){
        currentProcess->JobStartTime = Now();
        EnqueueProcess(READYQUEUE, currentProcess);
        currentProcess->state = READY;
+<<<<<<< HEAD
        AvailableMemory -= currentProcess->MemoryRequested;
        currentProcess->MemoryAllocated = currentProcess->MemoryRequested;
+=======
+       if (policy == OMAP) { 
+           AvailableMemory -= currentProcess->MemoryRequested;
+           currentProcess->MemoryAllocated = currentProcess->MemoryRequested;
+       }
+>>>>>>> 3751e1d133e37d9a455e03f376c110f0da927b78
     }
     currentProcess = DequeueProcess(JOBQUEUE);
   }
