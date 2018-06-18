@@ -24,9 +24,9 @@ typedef enum {TAT,RT,CBT,THGT,WT,WTJQ} Metric;
 /*****************************************************************************\
 *                             Global definitions                              *
 \*****************************************************************************/
-#define MAX_QUEUE_SIZE 10 
-#define FCFS            1 
-#define RR              3 
+#define MAX_QUEUE_SIZE 10
+#define FCFS            1
+#define RR              3
 
 
 #define MAXMETRICS      6
@@ -96,26 +96,26 @@ void ManageProcesses(void){
 }
 
 /***********************************************************************\
-* Input : none                                                          *          
-* Output: None                                                          *        
+* Input : none                                                          *
+* Output: None                                                          *
 * Function:                                                             *
 *    1) if CPU Burst done, then move process on CPU to Waiting Queue    *
-*         otherwise (RR) return to rReady Queue                         *                           
+*         otherwise (RR) return to rReady Queue                         *
 *    2) scan Waiting Queue to find processes with complete I/O          *
-*           and move them to Ready Queue                                *         
+*           and move them to Ready Queue                                *
 \***********************************************************************/
 void IO() {
-  ProcessControlBlock *currentProcess = DequeueProcess(RUNNINGQUEUE); 
+  ProcessControlBlock *currentProcess = DequeueProcess(RUNNINGQUEUE);
   if (currentProcess){
     if (currentProcess->RemainingCpuBurstTime <= 0) { // Finished current CPU Burst
       currentProcess->TimeEnterWaiting = Now(); // Record when entered the waiting queue
       EnqueueProcess(WAITINGQUEUE, currentProcess); // Move to Waiting Queue
       currentProcess->TimeIOBurstDone = Now() + currentProcess->IOBurstTime; // Record when IO completes
       currentProcess->state = WAITING;
-    } else { // Must return to Ready Queue                
-      currentProcess->JobStartTime = Now();                                               
+    } else { // Must return to Ready Queue
+      currentProcess->JobStartTime = Now();
       EnqueueProcess(READYQUEUE, currentProcess); // Mobe back to Ready Queue
-      currentProcess->state = READY; // Update PCB state 
+      currentProcess->state = READY; // Update PCB state
     }
   }
 
@@ -143,28 +143,28 @@ void IO() {
   } // if (ProcessToMove)
 }
 
-/***********************************************************************\    
- * Input : whichPolicy (1:FCFS, 2: SRTF, and 3:RR)                      *        
- * Output: None                                                         * 
+/***********************************************************************\
+ * Input : whichPolicy (1:FCFS, 2: SRTF, and 3:RR)                      *
+ * Output: None                                                         *
  * Function: Selects Process from Ready Queue and Puts it on Running Q. *
 \***********************************************************************/
 void CPUScheduler(Identifier whichPolicy) {
   ProcessControlBlock *selectedProcess;
   if ((whichPolicy == FCFS) || (whichPolicy == RR)) {
     selectedProcess = DequeueProcess(READYQUEUE);
-  } else{ // Shortest Remaining Time First 
+  } else{ // Shortest Remaining Time First
     selectedProcess = SRTF();
   }
   if (selectedProcess) {
-    selectedProcess->state = RUNNING; // Process state becomes Running                                     
-    EnqueueProcess(RUNNINGQUEUE, selectedProcess); // Put process in Running Queue                         
+    selectedProcess->state = RUNNING; // Process state becomes Running
+    EnqueueProcess(RUNNINGQUEUE, selectedProcess); // Put process in Running Queue
   }
 }
 
-/***********************************************************************\                         
- * Input : None                                                         *                                     
- * Output: Pointer to the process with shortest remaining time (SRTF)   *                                     
- * Function: Returns process control block with SRTF                    *                                     
+/***********************************************************************\
+ * Input : None                                                         *
+ * Output: Pointer to the process with shortest remaining time (SRTF)   *
+ * Function: Returns process control block with SRTF                    *
 \***********************************************************************/
 ProcessControlBlock *SRTF() {
   /* Select Process with Shortest Remaining Time*/
@@ -192,12 +192,12 @@ ProcessControlBlock *SRTF() {
   return(selectedProcess);
 }
 
-/***********************************************************************\  
- * Input : None                                                         *   
- * Output: None                                                         *   
+/***********************************************************************\
+ * Input : None                                                         *
+ * Output: None                                                         *
  * Function:                                                            *
  *  1)If process in Running Queue needs computation, put it on CPU      *
- *              else move process from running queue to Exit Queue      *     
+ *              else move process from running queue to Exit Queue      *
 \***********************************************************************/
 void Dispatcher() {
   double start;
@@ -210,10 +210,10 @@ void Dispatcher() {
     NumberofJobs[RT]++;
     processOnCPU->StartCpuTime = Now(); // Set StartCpuTime
   }
-  
+
   if (processOnCPU->TimeInCpu >= processOnCPU-> TotalJobDuration) { // Process Complete
     printf(" >>>>>Process # %d complete, %d Processes Completed So Far <<<<<<\n",
-	   processOnCPU->ProcessID,NumberofJobs[THGT]);   
+	  processOnCPU->ProcessID,NumberofJobs[THGT]);
     processOnCPU=DequeueProcess(RUNNINGQUEUE);
     EnqueueProcess(EXITQUEUE,processOnCPU);
     AvailableMemory += processOnCPU->MemoryAllocated;
@@ -239,7 +239,7 @@ void Dispatcher() {
 	CpuBurstTime = processOnCPU->RemainingCpuBurstTime;
     }
     processOnCPU->RemainingCpuBurstTime -= CpuBurstTime;
-    // SB_ 6/4 End Fixes RR 
+    // SB_ 6/4 End Fixes RR
     TimePeriod StartExecution = Now();
     OnCPU(processOnCPU, CpuBurstTime); // SB_ 6/4 use CpuBurstTime instead of PCB-> CpuBurstTime
     processOnCPU->TimeInCpu += CpuBurstTime; // SB_ 6/4 use CpuBurstTime instead of PCB-> CpuBurstTimeu
@@ -265,14 +265,14 @@ void NewJobIn(ProcessControlBlock whichProcess){
 }
 
 
-/***********************************************************************\                                                   
-* Input : None                                                         *                                                    
-* Output: None                                                         *                                                    
+/***********************************************************************\
+* Input : None                                                         *
+* Output: None                                                         *
 * Function:                                                            *
 * 1) BookKeeping is called automatically when 250 arrived              *
 * 2) Computes and display metrics: average turnaround  time, throughput*
 *     average response time, average waiting time in ready queue,      *
-*     and CPU Utilization                                              *                                                     
+*     and CPU Utilization                                              *
 \***********************************************************************/
 void BookKeeping(void){
   double end = Now(); // Total time for all processes to arrive
@@ -290,7 +290,7 @@ void BookKeeping(void){
   if (NumberofJobs[WT] > 0){
     SumMetrics[WT] = SumMetrics[WT]/ (Average) NumberofJobs[WT];
   }
-  
+
   if (NumberofJobs[WTJQ] > 0){
     SumMetrics[WTJQ] = SumMetrics[WTJQ] / (Average) NumberofJobs[WTJQ];
   }
@@ -298,8 +298,8 @@ void BookKeeping(void){
   printf("\n********* Processes Managemenent Numbers ******************************\n");
   printf("Policy Number = %d, Quantum = %.6f   Show = %d\n", PolicyNumber, Quantum, Show);
   printf("Number of Completed Processes = %d\n", NumberofJobs[THGT]);
-  printf("ATAT=%f   ART=%f  CBT = %f  T=%f AWT=%f  AWTJQ=%f\n", 
-	 SumMetrics[TAT], SumMetrics[RT], SumMetrics[CBT], 
+  printf("ATAT=%f   ART=%f  CBT = %f  T=%f AWT=%f\n  AWTJQ=%f\n",
+	 SumMetrics[TAT], SumMetrics[RT], SumMetrics[CBT],
 	 NumberofJobs[THGT]/Now(), SumMetrics[WT], SumMetrics[WTJQ]);
 
   exit(0);
@@ -323,7 +323,7 @@ void LongtermScheduler(void){
        EnqueueProcess(READYQUEUE, currentProcess);
        currentProcess->state = READY;
        AvailableMemory -= currentProcess->MemoryRequested;
-       currentProcess->MemoryAllocated = currentProcess->MemoryRequested;   
+       currentProcess->MemoryAllocated = currentProcess->MemoryRequested;
     }
     currentProcess = DequeueProcess(JOBQUEUE);
   }
