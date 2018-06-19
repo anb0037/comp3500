@@ -19,7 +19,7 @@
 \*****************************************************************************/
 
 typedef enum {TAT,RT,CBT,THGT,WT,WTJQ} Metric;
-typedef enum {INFINITE,OMAP,BESTFIT,WORSTFIT} MemoryPolicy;
+typedef enum {INFINITE,OMAP,BESTFIT,WORSTFIT,PAGING} MemoryPolicy;
 
 /*****************************************************************************\
 *                             Global definitions                              *
@@ -47,6 +47,13 @@ typedef enum {INFINITE,OMAP,BESTFIT,WORSTFIT} MemoryPolicy;
 Quantity NumberofJobs[MAXMETRICS]; // Number of Jobs for which metric was collected
 Average  SumMetrics[MAXMETRICS]; // Sum for each Metrics
 const MemoryPolicy policy = OMAP; // Policy selection
+const PageSize1 int = 256;
+const PageSize2 int = 8192;
+const Quantity NumberOfAvailablePages1 = floor(AvailableMemory/256); //AvailableMemory expressed as pages (PS 256)
+const Quantity NumberOfAvailablePages2 = floor(AvailableMemory/8192);//AvailableMemory expressed as pages (PS 8192)
+Quantity NumberOfRequestedPages1; //MemoryRequested expressed as pages (PS 256)
+Quantity NumberOfRequestedPages2; //MemoryRequested expressed as pages (PS 256)
+
 
 /*****************************************************************************\
 *                               Function prototypes                           *
@@ -220,7 +227,12 @@ void Dispatcher() {
     if (policy == OMAP) {
         AvailableMemory += processOnCPU->MemoryAllocated;
         processOnCPU->MemoryAllocated = 0;
-    } 
+    }
+
+    if (policy == PAGING) {
+        NumberOfAvailablePages1 += NumberOfRequestedPages1;
+        NumberOfAvailablePages2 += NumberOfRequestedPages2;
+    }
 
     NumberofJobs[THGT]++;
     NumberofJobs[TAT]++;
@@ -325,15 +337,20 @@ void LongtermScheduler(void){
        currentProcess->JobStartTime = Now();
        EnqueueProcess(READYQUEUE, currentProcess);
        currentProcess->state = READY;
-<<<<<<< HEAD
-       AvailableMemory -= currentProcess->MemoryRequested;
-       currentProcess->MemoryAllocated = currentProcess->MemoryRequested;
-=======
-       if (policy == OMAP) { 
+
+       if (policy == OMAP) {
            AvailableMemory -= currentProcess->MemoryRequested;
            currentProcess->MemoryAllocated = currentProcess->MemoryRequested;
        }
->>>>>>> 3751e1d133e37d9a455e03f376c110f0da927b78
+
+       if (policy == PAGING) {
+          NumberOfRequestedPages1 = ceil(pcb->MemoryRequested/256);
+          NumberOfRequestedPages2 = ceil(pcb->MemoryRequested/8192);
+
+          NumberOfAvailablePages1 -= NumberOfRequestedPages1;
+          NumberOfAvailablePages2 -= NumberOfRequestedPages2;
+       }
+
     }
     currentProcess = DequeueProcess(JOBQUEUE);
   }
