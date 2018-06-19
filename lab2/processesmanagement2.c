@@ -49,10 +49,10 @@ Average  SumMetrics[MAXMETRICS]; // Sum for each Metrics
 const MemoryPolicy policy = OMAP; // Policy selection
 const int PageSize1 = 256;
 const int PageSize2 = 8192;
-/*const int NumberOfAvailablePages1 = floor(AvailableMemory/256); //AvailableMemory expressed as pages (PS 256)
-const int NumberOfAvailablePages2 = floor(AvailableMemory/8192);//AvailableMemory expressed as pages (PS 8192)
-const int NumberOfRequestedPages1; //MemoryRequested expressed as pages (PS 256)
-const int NumberOfRequestedPages2; //MemoryRequested expressed as pages (PS 256)*/
+int NumberOfAvailablePages1 = floor(AvailableMemory/256); //AvailableMemory expressed as pages (PS 256)
+int NumberOfAvailablePages2 = floor(AvailableMemory/8192);//AvailableMemory expressed as pages (PS 8192)
+int NumberOfRequestedPages1; //MemoryRequested expressed as pages (PS 256)
+int NumberOfRequestedPages2; //MemoryRequested expressed as pages (PS 256)*/
 
 
 /*****************************************************************************\
@@ -348,10 +348,10 @@ void LongtermScheduler(void){
        }
 
        if (policy == PAGING) {
-	  int NumberOfAvailablePages1 = floor(AvailableMemory/256); //AvailableMemory expressed as pages (PS 256)
+	  /*int NumberOfAvailablePages1 = floor(AvailableMemory/256); //AvailableMemory expressed as pages (PS 256)
 	  int NumberOfAvailablePages2 = floor(AvailableMemory/8192);//AvailableMemory expressed as pages (PS 8192)
 	  int NumberOfRequestedPages1; //MemoryRequested expressed as pages (PS 256)
-	  int NumberOfRequestedPages2; //MemoryRequested expressed as pages (PS 256)
+	  int NumberOfRequestedPages2; //MemoryRequested expressed as pages (PS 256)*/
 
           NumberOfRequestedPages1 = ceil(currentProcess->MemoryRequested/256);
           NumberOfRequestedPages2 = ceil(currentProcess->MemoryRequested/8192);
@@ -372,6 +372,10 @@ void LongtermScheduler(void){
 \***********************************************************************/
 Flag ManagementInitialization(void){
   Metric m;
+  int NumberOfAvailablePages1 = floor(AvailableMemory/256); //AvailableMemory expressed as pages (PS 256)
+  int NumberOfAvailablePages2 = floor(AvailableMemory/8192);//AvailableMemory expressed as pages (PS 8192)
+  //int NumberOfRequestedPages1; //MemoryRequested expressed as pages (PS 256)
+  //const int NumberOfRequestedPages2; //MemoryRequested expressed as pages (PS 256)*/
   for (m = TAT; m < MAXMETRICS; m++){
      NumberofJobs[m] = 0;
      SumMetrics[m]   = 0.0;
