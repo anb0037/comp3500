@@ -37,8 +37,17 @@ typedef enum {INFINITE,OMAP,BESTFIT,WORSTFIT} MemoryPolicy;
 *                            Global data structures                           *
 \*****************************************************************************/
 
+typedef struct FreeMemoryBlock {
+	struct FreeMemoryBlock *previous;
+	struct FreeMemoryBlock *next;
+	Memory topOfBlock;
+	Memory sizeOfBlock;
+} FreeMemoryBlock;
 
-
+typedef struct MemoryBlockList {
+	FreeMemoryBlock *Head;
+	FreeMemoryBlock *Tail;
+} MemoryBlockList;
 
 /*****************************************************************************\
 *                                  Global data                                *
@@ -46,7 +55,8 @@ typedef enum {INFINITE,OMAP,BESTFIT,WORSTFIT} MemoryPolicy;
 
 Quantity NumberofJobs[MAXMETRICS]; // Number of Jobs for which metric was collected
 Average  SumMetrics[MAXMETRICS]; // Sum for each Metrics
-const MemoryPolicy policy = OMAP; // Policy selection
+MemoryBlockList FreeMemoryBlocks;
+const MemoryPolicy policy = BESTFIT; // Policy selection
 
 /*****************************************************************************\
 *                               Function prototypes                           *
@@ -61,6 +71,10 @@ void                 IO();
 void                 CPUScheduler(Identifier whichPolicy);
 ProcessControlBlock *SRTF();
 void                 Dispatcher();
+Flag				 removeBlock(FreeMemoryBlock *freeMemoryBlock);
+void 				 compactMemory();
+ProcessControlBlock *getProcessAtAddress(Memory *address);
+FreeMemoryBlock     *getFreeMemoryBlockAtAddress(Memory *address);
 
 /*****************************************************************************\
 * function: main()                                                            *
@@ -214,13 +228,22 @@ void Dispatcher() {
   
   if (processOnCPU->TimeInCpu >= processOnCPU-> TotalJobDuration) { // Process Complete
     printf(" >>>>>Process # %d complete, %d Processes Completed So Far <<<<<<\n",
-	   processOnCPU->ProcessID,NumberofJobs[THGT]);   
+	  	processOnCPU->ProcessID,NumberofJobs[THGT]);   
     processOnCPU=DequeueProcess(RUNNINGQUEUE);
     EnqueueProcess(EXITQUEUE,processOnCPU);
     if (policy == OMAP) {
         AvailableMemory += processOnCPU->MemoryAllocated;
         processOnCPU->MemoryAllocated = 0;
-    } 
+    } else if (policy == BESTFIT || policy == WORSTFIT) {
+        // create a new free memory block where the process used to be
+        AvailableMemory += processOnCPU->MemoryAllocated;
+        processOnCPU->MemoryAllocated = 0;
+    	FreeMemoryBlock *newFreeMemoryBlock;
+    	newFreeMemoryBlock->topOfBlock = processOnCPU->TopOfMemory;
+    	newFreeMemoryBlock->sizeOfBlock = processOnCPU->MemoryAllocated;
+    	FreeMemoryBlocks.Tail->next = newFreeMemoryBlock;
+    	FreeMemoryBlocks.Tail = newFreeMemoryBlock;
+    }
 
     NumberofJobs[THGT]++;
     NumberofJobs[TAT]++;
@@ -232,6 +255,9 @@ void Dispatcher() {
 
     // processOnCPU = DequeueProcess(EXITQUEUE);
     // XXX free(processOnCPU);
+
+    // Freed memory, so we should check if we have room for another process
+    LongtermScheduler();
 
   } else { // Process still needs computing, out it on CPU
     TimePeriod CpuBurstTime = processOnCPU->CpuBurstTime;
@@ -329,6 +355,27 @@ void LongtermScheduler(void){
            AvailableMemory -= currentProcess->MemoryRequested;
            currentProcess->MemoryAllocated = currentProcess->MemoryRequested;
        }
+       else if (policy == BESTFIT) {
+           struct FreeMemoryBlock* currentMemoryBlock = FreeMemoryBlocks.Head;
+           struct FreeMemoryBlock* selectedMemoryBlock;
+           while (currentMemoryBlock !=  NULL) {
+           		// select the minimum of the blocks that are large enough to accomodate the new process 
+       	   		printf("looking for memory block\n");
+           		if (currentMemoryBlock->sizeOfBlock >= currentProcess->MemoryRequested && currentMemoryBlock->sizeOfBlock <= selectedMemoryBlock->sizeOfBlock) {
+           			printf("selected memory block\n");
+                selectedMemoryBlock = currentMemoryBlock;
+           		}
+           		currentMemoryBlock = currentMemoryBlock->previous;
+           }
+           if (selectedMemoryBlock != NULL) { // assign that process to the selected blocks
+           	  printf("assigning process to memory block\n");
+           		currentProcess->TopOfMemory = selectedMemoryBlock->topOfBlock;
+           		selectedMemoryBlock->topOfBlock += currentProcess->MemoryRequested;
+           		selectedMemoryBlock->sizeOfBlock -= currentProcess->MemoryRequested;
+           		AvailableMemory -= currentProcess->MemoryRequested;
+           		currentProcess->MemoryAllocated = currentProcess->MemoryRequested;
+           }
+       }
     }
     currentProcess = DequeueProcess(JOBQUEUE);
   }
@@ -345,5 +392,118 @@ Flag ManagementInitialization(void){
      NumberofJobs[m] = 0;
      SumMetrics[m]   = 0.0;
   }
-  return TRUE;
+  // Initialize double-linked list of free memory blocks
+  FreeMemoryBlock memory;
+  memory.topOfBlock = 0;
+  memory.sizeOfBlock = AvailableMemory;
+  FreeMemoryBlocks.Head = &memory;
+  FreeMemoryBlocks.Tail = &memory;
+}
+
+/***********************************************************************\
+* Input : pointer to the block to remove from the list                  *
+* Output: if deletion was successful                                    *
+\***********************************************************************/
+Flag removeBlock(FreeMemoryBlock *freeMemoryBlock) {
+	if (freeMemoryBlock != NULL) { // null check on parameter
+		if (freeMemoryBlock->previous != NULL) {
+			if (freeMemoryBlock->next != NULL) { // handles case where freeMemoryBlock is in between 2 others in the list
+				freeMemoryBlock->previous->next = freeMemoryBlock->next;
+				freeMemoryBlock->next->previous = freeMemoryBlock->previous;
+				return TRUE;
+			} else { // handles case where freeMemoryBlock is at the back of the list
+				FreeMemoryBlocks.Tail = freeMemoryBlock->previous;
+				freeMemoryBlock->previous->next = NULL;
+				return TRUE;
+			}
+		} else if (freeMemoryBlock->next != NULL) { // handles case where freeMemoryBlock is at the front of the list
+			FreeMemoryBlocks.Head = freeMemoryBlock->next;
+			freeMemoryBlock->next->previous = NULL;
+			return TRUE;
+		} else {
+			return FALSE;
+		}
+
+	}
+	
+}
+
+/***********************************************************************\
+* Checks the space after each free memory block                         *
+* If it contains a process it compacts the process                      *
+* else if it contains another free memory block it combines the blocks  *
+* else it does nothing                                                  *
+* Input : none                                                          *
+* Output: none                                                          *
+\***********************************************************************/
+void compactMemory() {
+	FreeMemoryBlock *currentMemoryBlock = FreeMemoryBlocks.Head; // loop this until there is only one free space?
+	while(currentMemoryBlock != NULL) { // iterate through all free spaces
+
+		Memory *addressOfNextBlock = & currentMemoryBlock->topOfBlock + currentMemoryBlock->sizeOfBlock;
+		ProcessControlBlock *pcb = getProcessAtAddress(addressOfNextBlock); // get the PCB located immediately after this memory block, if there is one
+		if (pcb != NULL) { // if a process is located immediately after this block
+			// move the pcb to the top of the free memory block
+			pcb->TopOfMemory = currentMemoryBlock->topOfBlock;
+			// move the top of the free memory block to the address after the process
+			currentMemoryBlock->topOfBlock += pcb->MemoryAllocated;
+			printf(">> Compacted process %d\n", pcb->ProcessID);
+		}
+		FreeMemoryBlock *fmb = getFreeMemoryBlockAtAddress(addressOfNextBlock); // get the FMB located immediately after this memory block, if there is one
+		if (fmb != NULL) { // if a free memory block is located immediately after this block
+			//combine the 2 memory blocks
+			currentMemoryBlock->sizeOfBlock += fmb->sizeOfBlock;
+			removeBlock(fmb);
+			printf(">> Combined two contiguous free spaces\n");
+		}
+		currentMemoryBlock = currentMemoryBlock->next;
+	}
+}
+
+/***********************************************************************\
+* Input : address to search for a process                               *
+* Output: pointer to the process if there, null if not                  *
+\***********************************************************************/
+ProcessControlBlock *getProcessAtAddress(Memory *address) {
+	// search ready queue
+	ProcessControlBlock *pcb = Queues[READYQUEUE].Head;
+	while (pcb != NULL) {
+		if (pcb->TopOfMemory == *address) {
+			return pcb;
+		}
+		pcb = pcb->next;
+	}
+	// search running queue
+	pcb = Queues[RUNNINGQUEUE].Head;
+	while (pcb != NULL) {
+		if (pcb->TopOfMemory == *address) {
+			return pcb;
+		}
+		pcb = pcb->next;
+	}
+	// search waiting queue
+	pcb = Queues[WAITINGQUEUE].Head;
+	while (pcb != NULL) {
+		if (pcb->TopOfMemory == *address) {
+			return pcb;
+		}
+		pcb = pcb->next;
+	}
+	return NULL;
+
+} 
+
+/***********************************************************************\
+* Input : address to search for a free memory block                     *
+* Output: pointer to the free memory block if there, null if not        *
+\***********************************************************************/
+FreeMemoryBlock *getFreeMemoryBlockAtAddress(Memory *address) {
+	FreeMemoryBlock *fmb = FreeMemoryBlocks.Head;
+	while (fmb != NULL) {
+		if (fmb->topOfBlock == *address) {
+			return fmb;
+		}
+		fmb = fmb->next;
+	}
+	return NULL;
 }
