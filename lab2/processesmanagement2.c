@@ -47,12 +47,12 @@ typedef enum {INFINITE,OMAP,BESTFIT,WORSTFIT,PAGING} MemoryPolicy;
 Quantity NumberofJobs[MAXMETRICS]; // Number of Jobs for which metric was collected
 Average  SumMetrics[MAXMETRICS]; // Sum for each Metrics
 const MemoryPolicy policy = OMAP; // Policy selection
-const PageSize1 int = 256;
-const PageSize2 int = 8192;
-const Quantity NumberOfAvailablePages1 = floor(AvailableMemory/256); //AvailableMemory expressed as pages (PS 256)
-const Quantity NumberOfAvailablePages2 = floor(AvailableMemory/8192);//AvailableMemory expressed as pages (PS 8192)
-Quantity NumberOfRequestedPages1; //MemoryRequested expressed as pages (PS 256)
-Quantity NumberOfRequestedPages2; //MemoryRequested expressed as pages (PS 256)
+const int PageSize1 = 256;
+const int PageSize2 = 8192;
+/*const int NumberOfAvailablePages1 = floor(AvailableMemory/256); //AvailableMemory expressed as pages (PS 256)
+const int NumberOfAvailablePages2 = floor(AvailableMemory/8192);//AvailableMemory expressed as pages (PS 8192)
+const int NumberOfRequestedPages1; //MemoryRequested expressed as pages (PS 256)
+const int NumberOfRequestedPages2; //MemoryRequested expressed as pages (PS 256)*/
 
 
 /*****************************************************************************\
@@ -91,8 +91,7 @@ int main (int argc, char **argv) {
 /***********************************************************************\
 * Input : none                                                          *
 * Output: None                                                          *
-* Function: Monitor Sources and process events (written by students)    *
-\***********************************************************************/
+* Function: Monitor Sources and process events (written by students)    *\***********************************************************************/
 
 void ManageProcesses(void){
   ManagementInitialization();
@@ -114,6 +113,11 @@ void ManageProcesses(void){
 \***********************************************************************/
 void IO() {
   ProcessControlBlock *currentProcess = DequeueProcess(RUNNINGQUEUE);
+ // int NumberOfAvailablePages1 = floor(AvailableMemory/256); //AvailableMemory expressed as pages (PS 256)
+ // int NumberOfAvailablePages2 = floor(AvailableMemory/8192);//AvailableMemory expressed as pages (PS 8192)
+ // int NumberOfRequestedPages1; //MemoryRequested expressed as pages (PS 256)
+ // int NumberOfRequestedPages2; //MemoryRequested expressed as pages (PS 256)
+
   if (currentProcess){
     if (currentProcess->RemainingCpuBurstTime <= 0) { // Finished current CPU Burst
       currentProcess->TimeEnterWaiting = Now(); // Record when entered the waiting queue
@@ -344,8 +348,13 @@ void LongtermScheduler(void){
        }
 
        if (policy == PAGING) {
-          NumberOfRequestedPages1 = ceil(pcb->MemoryRequested/256);
-          NumberOfRequestedPages2 = ceil(pcb->MemoryRequested/8192);
+	  int NumberOfAvailablePages1 = floor(AvailableMemory/256); //AvailableMemory expressed as pages (PS 256)
+	  int NumberOfAvailablePages2 = floor(AvailableMemory/8192);//AvailableMemory expressed as pages (PS 8192)
+	  int NumberOfRequestedPages1; //MemoryRequested expressed as pages (PS 256)
+	  int NumberOfRequestedPages2; //MemoryRequested expressed as pages (PS 256)
+
+          NumberOfRequestedPages1 = ceil(currentProcess->MemoryRequested/256);
+          NumberOfRequestedPages2 = ceil(currentProcess->MemoryRequested/8192);
 
           NumberOfAvailablePages1 -= NumberOfRequestedPages1;
           NumberOfAvailablePages2 -= NumberOfRequestedPages2;
