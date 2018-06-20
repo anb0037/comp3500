@@ -19,14 +19,14 @@
 \*****************************************************************************/
 
 typedef enum {TAT,RT,CBT,THGT,WT,WTJQ} Metric;
-typedef enum {INFINITE,OMAP,BESTFIT,WORSTFIT} MemoryPolicy;
+typedef enum {INFINITE,OMAP,BESTFIT,WORSTFIT,PAGING} MemoryPolicy;
 
 /*****************************************************************************\
 *                             Global definitions                              *
 \*****************************************************************************/
-#define MAX_QUEUE_SIZE 10 
-#define FCFS            1 
-#define RR              3 
+#define MAX_QUEUE_SIZE 10
+#define FCFS            1
+#define RR              3
 
 
 #define MAXMETRICS      6
@@ -37,8 +37,18 @@ typedef enum {INFINITE,OMAP,BESTFIT,WORSTFIT} MemoryPolicy;
 *                            Global data structures                           *
 \*****************************************************************************/
 
+typedef struct MemoryBlock {
+	struct MemoryBlock *previous;
+	struct MemoryBlock *next;
+  Memory size;
+  Memory top;
+	ProcessControlBlock *process;
+} MemoryBlock;
 
-
+typedef struct MemoryBlockList {
+	MemoryBlock *Head;
+	MemoryBlock *Tail;
+} MemoryBlockList;
 
 /*****************************************************************************\
 *                                  Global data                                *
@@ -46,7 +56,13 @@ typedef enum {INFINITE,OMAP,BESTFIT,WORSTFIT} MemoryPolicy;
 
 Quantity NumberofJobs[MAXMETRICS]; // Number of Jobs for which metric was collected
 Average  SumMetrics[MAXMETRICS]; // Sum for each Metrics
-const MemoryPolicy policy = OMAP; // Policy selection
+
+MemoryBlockList MemoryBlocks;
+const MemoryPolicy policy = BESTFIT; // Policy selection
+const int PageSize = 8096;
+int NumberOfAvailablePages;//AvailableMemory expressed as pages
+int NumberOfRequestedPages; //MemoryRequested expressed as pages 
+
 
 /*****************************************************************************\
 *                               Function prototypes                           *
@@ -61,6 +77,14 @@ void                 IO();
 void                 CPUScheduler(Identifier whichPolicy);
 ProcessControlBlock *SRTF();
 void                 Dispatcher();
+Flag                 omap (ProcessControlBlock *currentProcess);
+Flag                 paging (ProcessControlBlock *currentProcess);
+Flag                 bestfit (ProcessControlBlock *currentProcess, Flag compactionOccured);
+Flag                 worstfit (ProcessControlBlock *currentProcess, Flag compactionOccured);
+Flag				         removeBlock(MemoryBlock *memoryBlock);
+void                 push(MemoryBlock *MemoryBlock);
+void                 compactMemory();
+void                 PrintMemoryBlocks();
 
 /*****************************************************************************\
 * function: main()                                                            *
@@ -97,26 +121,26 @@ void ManageProcesses(void){
 }
 
 /***********************************************************************\
-* Input : none                                                          *          
-* Output: None                                                          *        
+* Input : none                                                          *
+* Output: None                                                          *
 * Function:                                                             *
 *    1) if CPU Burst done, then move process on CPU to Waiting Queue    *
-*         otherwise (RR) return to rReady Queue                         *                           
+*         otherwise (RR) return to rReady Queue                         *
 *    2) scan Waiting Queue to find processes with complete I/O          *
-*           and move them to Ready Queue                                *         
+*           and move them to Ready Queue                                *
 \***********************************************************************/
 void IO() {
-  ProcessControlBlock *currentProcess = DequeueProcess(RUNNINGQUEUE); 
+  ProcessControlBlock *currentProcess = DequeueProcess(RUNNINGQUEUE);
   if (currentProcess){
     if (currentProcess->RemainingCpuBurstTime <= 0) { // Finished current CPU Burst
       currentProcess->TimeEnterWaiting = Now(); // Record when entered the waiting queue
       EnqueueProcess(WAITINGQUEUE, currentProcess); // Move to Waiting Queue
       currentProcess->TimeIOBurstDone = Now() + currentProcess->IOBurstTime; // Record when IO completes
       currentProcess->state = WAITING;
-    } else { // Must return to Ready Queue                
-      currentProcess->JobStartTime = Now();                                               
+    } else { // Must return to Ready Queue
+      currentProcess->JobStartTime = Now();
       EnqueueProcess(READYQUEUE, currentProcess); // Mobe back to Ready Queue
-      currentProcess->state = READY; // Update PCB state 
+      currentProcess->state = READY; // Update PCB state
     }
   }
 
@@ -144,28 +168,28 @@ void IO() {
   } // if (ProcessToMove)
 }
 
-/***********************************************************************\    
- * Input : whichPolicy (1:FCFS, 2: SRTF, and 3:RR)                      *        
- * Output: None                                                         * 
+/***********************************************************************\
+ * Input : whichPolicy (1:FCFS, 2: SRTF, and 3:RR)                      *
+ * Output: None                                                         *
  * Function: Selects Process from Ready Queue and Puts it on Running Q. *
 \***********************************************************************/
 void CPUScheduler(Identifier whichPolicy) {
   ProcessControlBlock *selectedProcess;
   if ((whichPolicy == FCFS) || (whichPolicy == RR)) {
     selectedProcess = DequeueProcess(READYQUEUE);
-  } else{ // Shortest Remaining Time First 
+  } else{ // Shortest Remaining Time First
     selectedProcess = SRTF();
   }
   if (selectedProcess) {
-    selectedProcess->state = RUNNING; // Process state becomes Running                                     
-    EnqueueProcess(RUNNINGQUEUE, selectedProcess); // Put process in Running Queue                         
+    selectedProcess->state = RUNNING; // Process state becomes Running
+    EnqueueProcess(RUNNINGQUEUE, selectedProcess); // Put process in Running Queue
   }
 }
 
-/***********************************************************************\                         
- * Input : None                                                         *                                     
- * Output: Pointer to the process with shortest remaining time (SRTF)   *                                     
- * Function: Returns process control block with SRTF                    *                                     
+/***********************************************************************\
+ * Input : None                                                         *
+ * Output: Pointer to the process with shortest remaining time (SRTF)   *
+ * Function: Returns process control block with SRTF                    *
 \***********************************************************************/
 ProcessControlBlock *SRTF() {
   /* Select Process with Shortest Remaining Time*/
@@ -185,7 +209,7 @@ ProcessControlBlock *SRTF() {
 	EnqueueProcess(READYQUEUE,currentProcess);
       }
       if (currentProcess->ProcessID == IDFirstProcess){
-	break;
+	       break;
       }
       currentProcess =DequeueProcess(READYQUEUE);
     } // while (ProcessToMove)
@@ -193,12 +217,12 @@ ProcessControlBlock *SRTF() {
   return(selectedProcess);
 }
 
-/***********************************************************************\  
- * Input : None                                                         *   
- * Output: None                                                         *   
+/***********************************************************************\
+ * Input : None                                                         *
+ * Output: None                                                         *
  * Function:                                                            *
  *  1)If process in Running Queue needs computation, put it on CPU      *
- *              else move process from running queue to Exit Queue      *     
+ *              else move process from running queue to Exit Queue      *
 \***********************************************************************/
 void Dispatcher() {
   double start;
@@ -211,16 +235,32 @@ void Dispatcher() {
     NumberofJobs[RT]++;
     processOnCPU->StartCpuTime = Now(); // Set StartCpuTime
   }
-  
+
   if (processOnCPU->TimeInCpu >= processOnCPU-> TotalJobDuration) { // Process Complete
     printf(" >>>>>Process # %d complete, %d Processes Completed So Far <<<<<<\n",
-	   processOnCPU->ProcessID,NumberofJobs[THGT]);   
+	  processOnCPU->ProcessID,NumberofJobs[THGT]);
     processOnCPU=DequeueProcess(RUNNINGQUEUE);
     EnqueueProcess(EXITQUEUE,processOnCPU);
     if (policy == OMAP) {
         AvailableMemory += processOnCPU->MemoryAllocated;
+        printf(" >> deallocated %d from %d, %d AvailableMemory\n", processOnCPU->MemoryAllocated, processOnCPU->ProcessID, AvailableMemory);
         processOnCPU->MemoryAllocated = 0;
-    } 
+    } else if (policy == BESTFIT || policy == WORSTFIT) {
+      // remove the process and free up the memory block
+      struct MemoryBlock *memoryBlock = MemoryBlocks.Head;
+      while(memoryBlock) {
+        if (memoryBlock->process && memoryBlock->process->ProcessID == processOnCPU->ProcessID) {
+          memoryBlock->process = NULL;
+          printf(" >> deallocated memory block from process %d\n", processOnCPU->ProcessID);
+          break;
+        }
+        memoryBlock = memoryBlock->next;
+      }
+    	
+    } else if (policy == PAGING) {
+        printf(" >> deallocated %d pages from %d, %d frames available\n", NumberOfRequestedPages, processOnCPU->ProcessID, NumberOfAvailablePages);
+        NumberOfAvailablePages += NumberOfRequestedPages;
+    }
 
     NumberofJobs[THGT]++;
     NumberofJobs[TAT]++;
@@ -233,22 +273,26 @@ void Dispatcher() {
     // processOnCPU = DequeueProcess(EXITQUEUE);
     // XXX free(processOnCPU);
 
+    // Freed memory, so we should check if we have room for another process
+    LongtermScheduler();
+
   } else { // Process still needs computing, out it on CPU
     TimePeriod CpuBurstTime = processOnCPU->CpuBurstTime;
     processOnCPU->TimeInReadyQueue += Now() - processOnCPU->JobStartTime;
     if (PolicyNumber == RR){
       CpuBurstTime = Quantum;
       if (processOnCPU->RemainingCpuBurstTime < Quantum)
-	CpuBurstTime = processOnCPU->RemainingCpuBurstTime;
+	     CpuBurstTime = processOnCPU->RemainingCpuBurstTime;
     }
     processOnCPU->RemainingCpuBurstTime -= CpuBurstTime;
-    // SB_ 6/4 End Fixes RR 
+    // SB_ 6/4 End Fixes RR
     TimePeriod StartExecution = Now();
     OnCPU(processOnCPU, CpuBurstTime); // SB_ 6/4 use CpuBurstTime instead of PCB-> CpuBurstTime
     processOnCPU->TimeInCpu += CpuBurstTime; // SB_ 6/4 use CpuBurstTime instead of PCB-> CpuBurstTimeu
     SumMetrics[CBT] += CpuBurstTime;
   }
 }
+
 
 /***********************************************************************\
 * Input : None                                                          *
@@ -268,14 +312,14 @@ void NewJobIn(ProcessControlBlock whichProcess){
 }
 
 
-/***********************************************************************\                                                   
-* Input : None                                                         *                                                    
-* Output: None                                                         *                                                    
+/***********************************************************************\
+* Input : None                                                         *
+* Output: None                                                         *
 * Function:                                                            *
 * 1) BookKeeping is called automatically when 250 arrived              *
 * 2) Computes and display metrics: average turnaround  time, throughput*
 *     average response time, average waiting time in ready queue,      *
-*     and CPU Utilization                                              *                                                     
+*     and CPU Utilization                                              *
 \***********************************************************************/
 void BookKeeping(void){
   double end = Now(); // Total time for all processes to arrive
@@ -293,16 +337,16 @@ void BookKeeping(void){
   if (NumberofJobs[WT] > 0){
     SumMetrics[WT] = SumMetrics[WT]/ (Average) NumberofJobs[WT];
   }
-  
+
   if (NumberofJobs[WTJQ] > 0){
     SumMetrics[WTJQ] = SumMetrics[WTJQ] / (Average) NumberofJobs[WTJQ];
   }
 
-  printf("\n********* Processes Managemenent Numbers ******************************\n");
+  printf("\n********* Processes Managemenent Numbers *******************************************\n");
   printf("Policy Number = %d, Quantum = %.6f   Show = %d\n", PolicyNumber, Quantum, Show);
   printf("Number of Completed Processes = %d\n", NumberofJobs[THGT]);
-  printf("ATAT=%f   ART=%f  CBT = %f  T=%f AWT=%f  AWTJQ=%f\n", 
-	 SumMetrics[TAT], SumMetrics[RT], SumMetrics[CBT], 
+  printf("ATAT=%f   ART=%f  CBT = %f  T=%f AWT=%f AWTJQ=%f\n",
+	 SumMetrics[TAT], SumMetrics[RT], SumMetrics[CBT],
 	 NumberofJobs[THGT]/Now(), SumMetrics[WT], SumMetrics[WTJQ]);
 
   exit(0);
@@ -315,23 +359,127 @@ void BookKeeping(void){
 *           If enough memory and within multiprogramming limit,         *
 *           then move Process from Job Queue to Ready Queue             *
 \***********************************************************************/
-void LongtermScheduler(void){
+void LongtermScheduler(void) {
   ProcessControlBlock *currentProcess = DequeueProcess(JOBQUEUE);
+  Flag isSuccessful;
   while (currentProcess) {
-    if (AvailableMemory >= currentProcess->MemoryRequested) {
-       currentProcess->TimeInJobQueue = Now() - currentProcess->JobArrivalTime;
-       SumMetrics[WTJQ] += currentProcess->TimeInJobQueue;
-       NumberofJobs[WTJQ]++;
-       currentProcess->JobStartTime = Now();
-       EnqueueProcess(READYQUEUE, currentProcess);
-       currentProcess->state = READY;
-       if (policy == OMAP) { 
-           AvailableMemory -= currentProcess->MemoryRequested;
-           currentProcess->MemoryAllocated = currentProcess->MemoryRequested;
-       }
+   switch(policy) {
+    case OMAP: isSuccessful = omap(currentProcess);
+      break;
+    case PAGING: isSuccessful = paging(currentProcess);
+      break;
+    case BESTFIT: isSuccessful = bestfit(currentProcess, FALSE);
+      break;
+    case WORSTFIT: isSuccessful = worstfit(currentProcess, FALSE);
+      break;
+    case INFINITE: isSuccessful = TRUE;
+      break;
+   }
+    if (isSuccessful) {
+      currentProcess->TimeInJobQueue = Now() - currentProcess->JobArrivalTime;
+      currentProcess->MemoryAllocated = currentProcess->MemoryRequested;
+      SumMetrics[WTJQ] += currentProcess->TimeInJobQueue;
+      NumberofJobs[WTJQ]++;
+      currentProcess->JobStartTime = Now();
+      EnqueueProcess(READYQUEUE, currentProcess);
+      currentProcess->state = READY;
+      currentProcess = DequeueProcess(JOBQUEUE);
+    } else { // not enough memory, put it back and try again later
+      printf(">> not enough memory for process %d\n", currentProcess->ProcessID);
+      EnqueueProcess(JOBQUEUE, currentProcess);
+      break;
     }
-    currentProcess = DequeueProcess(JOBQUEUE);
   }
+}
+
+Flag omap (ProcessControlBlock *currentProcess) {
+  if (AvailableMemory >= currentProcess->MemoryRequested ) {
+       AvailableMemory -= currentProcess->MemoryRequested;
+       currentProcess->MemoryAllocated = currentProcess->MemoryRequested;
+       printf(" >> allocated %d to %d, %d AvailableMemory\n", currentProcess->MemoryAllocated, currentProcess->ProcessID, AvailableMemory);
+       return TRUE;
+      } else { // not enough memory, put process back in job queue 
+        return FALSE;
+      }
+}
+
+
+
+Flag paging(ProcessControlBlock *currentProcess)  {
+  NumberOfRequestedPages = ceil((float) currentProcess->MemoryRequested/PageSize);
+  if (NumberOfAvailablePages >= NumberOfRequestedPages) {
+    NumberOfAvailablePages -= NumberOfRequestedPages;
+    return TRUE;
+  } else {
+    return FALSE;
+  }
+ 
+}
+
+Flag bestfit (ProcessControlBlock *currentProcess, Flag compactionOccured) {
+   struct MemoryBlock* currentMemoryBlock = MemoryBlocks.Head;
+   struct MemoryBlock* selectedMemoryBlock;
+
+   while (currentMemoryBlock) {
+      // select the minimum of the unoccupied blocks that are large enough to accomodate the new process 
+      if (!currentMemoryBlock->process && currentMemoryBlock->size >= currentProcess->MemoryRequested && currentMemoryBlock->size <= selectedMemoryBlock->size) {
+        selectedMemoryBlock = currentMemoryBlock;
+      }
+      currentMemoryBlock = currentMemoryBlock->next;
+    }
+    if (selectedMemoryBlock && selectedMemoryBlock->top + currentProcess->MemoryRequested < AvailableMemory) { // assign that process to the selected blocks
+      //create new block to contain the process
+      struct MemoryBlock *newBlock = malloc(sizeof(MemoryBlock));
+      newBlock->process = currentProcess;
+      newBlock->top = selectedMemoryBlock->top;
+      newBlock->size = currentProcess->MemoryRequested;
+      push(newBlock);
+      //shrink the previous block by process size
+      currentProcess->TopOfMemory = selectedMemoryBlock->top;
+      selectedMemoryBlock->top += currentProcess->MemoryRequested;
+      selectedMemoryBlock->size -= currentProcess->MemoryRequested;
+      return TRUE;
+    } else { // no unoccupied blocks big enough
+      // compact memory and try again
+      if (!compactionOccured) {
+        compactMemory();
+        return bestfit(currentProcess, TRUE);
+      }
+      return FALSE;
+    }
+}
+
+Flag worstfit(ProcessControlBlock *currentProcess, Flag compactionOccured) {
+  struct MemoryBlock* currentMemoryBlock = MemoryBlocks.Head;
+   struct MemoryBlock* selectedMemoryBlock;
+   Memory sizeOfBiggestBlock = -1;
+   while (currentMemoryBlock) {
+      // select the maximum of the blocks that are large enough to accomodate the new process 
+      if (!currentMemoryBlock->process && currentMemoryBlock->size >= currentProcess->MemoryRequested && currentMemoryBlock->size >= sizeOfBiggestBlock) {
+        selectedMemoryBlock = currentMemoryBlock;
+        sizeOfBiggestBlock = selectedMemoryBlock->size;
+      }
+      currentMemoryBlock = currentMemoryBlock->next;
+    }
+    if (selectedMemoryBlock && selectedMemoryBlock->top + currentProcess->MemoryRequested < AvailableMemory) { // assign that process to the selected blocks
+      //create new block to contain the process
+      struct MemoryBlock *newBlock = malloc(sizeof(MemoryBlock));
+      newBlock->process = currentProcess;
+      newBlock->top = selectedMemoryBlock->top;
+      newBlock->size = currentProcess->MemoryRequested;
+      push(newBlock);
+      //shrink free block by process size, remove it if 0
+      currentProcess->TopOfMemory = selectedMemoryBlock->top;
+      selectedMemoryBlock->top += currentProcess->MemoryRequested;
+      selectedMemoryBlock->size -= currentProcess->MemoryRequested;
+      return TRUE;
+    } else { 
+      if (!compactionOccured) {
+        compactMemory();
+        return worstfit(currentProcess, TRUE);
+      }
+      return FALSE;
+    }
 }
 
 
@@ -340,10 +488,97 @@ void LongtermScheduler(void){
 * Output: TRUE if Intialization successful                              *
 \***********************************************************************/
 Flag ManagementInitialization(void){
+
+  NumberOfAvailablePages = floor(AvailableMemory/PageSize); //AvailableMemory expressed as pages
+  
   Metric m;
   for (m = TAT; m < MAXMETRICS; m++){
      NumberofJobs[m] = 0;
      SumMetrics[m]   = 0.0;
   }
-  return TRUE;
+  // Initialize double-linked list of memory blocks
+  struct MemoryBlock* memory = malloc(sizeof(MemoryBlock));
+  memory->top = 0;
+  memory->size = AvailableMemory;
+  MemoryBlocks.Head = memory;
+  MemoryBlocks.Tail = memory;
+  PrintMemoryBlocks();
+}
+
+/***********************************************************************\
+* Input : pointer to the block to remove from the list                  *
+* Output: if deletion was successful                                    *
+\***********************************************************************/
+Flag removeBlock(MemoryBlock *memoryBlock) {
+	if (memoryBlock) { // null check on parameter
+		if (memoryBlock->previous) {
+			if (memoryBlock->next) { // handles case where memoryBlock is in between 2 others in the list
+				memoryBlock->previous->next = memoryBlock->next;
+				memoryBlock->next->previous = memoryBlock->previous;
+				return TRUE;
+			} else { // handles case where memoryBlock is at the back of the list
+				MemoryBlocks.Tail = memoryBlock->previous;
+				memoryBlock->previous->next = NULL;
+				return TRUE;
+			}
+		} else if (memoryBlock->next) { // handles case where memoryBlock is at the front of the list
+			MemoryBlocks.Head = memoryBlock->next;
+			memoryBlock->next->previous = NULL;
+			return TRUE;
+		} else {
+			return FALSE;
+		}
+
+	}
+	
+}
+
+void compactMemory() {
+  printf("!! PERFORMING COMPACTION !!\n");
+  struct MemoryBlock *memoryBlock = MemoryBlocks.Head;
+  Memory sizeOfNewBlock = 0;
+  Memory addressOfNewBlock = 0;
+  int count = 0;
+  while (memoryBlock) { // iterate through all memory blocks
+    if (memoryBlock->process == NULL) { // remove unoccupied blocks and 
+      sizeOfNewBlock += memoryBlock->size;
+      removeBlock(memoryBlock);
+      count++;
+    } else {
+      memoryBlock->process->TopOfMemory = addressOfNewBlock;
+      addressOfNewBlock += memoryBlock->process->MemoryAllocated;
+    }
+    memoryBlock = memoryBlock->next;
+  }
+  if (sizeOfNewBlock > 0) {
+    struct MemoryBlock *newFreeBlock = malloc(sizeof(MemoryBlock));
+    newFreeBlock->size = sizeOfNewBlock;
+    newFreeBlock->top = addressOfNewBlock;
+    push(newFreeBlock);
+    printf("!! COMPACTED %d MEMORY BLOCKS FOR %d BYTES !!\n", count, sizeOfNewBlock);
+    PrintMemoryBlocks();
+  }
+}
+
+void push(MemoryBlock *memoryBlock) {
+  memoryBlock->previous = MemoryBlocks.Tail;
+  memoryBlock->previous->next = memoryBlock;
+  memoryBlock->next = NULL;
+  MemoryBlocks.Tail = memoryBlock;
+}
+
+
+void PrintMemoryBlocks() {
+  printf(">>>>>>>>>> AVAILABLE MEMORY BLOCKS <<<<<<<<<<<<<\n");
+  struct MemoryBlock* temp = MemoryBlocks.Head;
+  while (temp) {
+    if (temp->process) {
+      printf("Block occupied by process %d at address %d\n",temp->process->ProcessID, temp->process->TopOfMemory);
+    } else {
+      printf("Unoccupied block location: %d Block size: %d\n",temp->top, temp->size);
+    }
+    temp = temp->next;
+  }
+
+  printf(">>>>>>>>>> END AVAILABLE MEMORY BLOCKS <<<<<<<<<<<<<\n");
 }
