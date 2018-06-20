@@ -58,7 +58,7 @@ Quantity NumberofJobs[MAXMETRICS]; // Number of Jobs for which metric was collec
 Average  SumMetrics[MAXMETRICS]; // Sum for each Metrics
 
 MemoryBlockList MemoryBlocks;
-const MemoryPolicy policy = INFINITE; // Policy selection
+const MemoryPolicy policy = PAGING; // Policy selection
 const int PageSize = 8096;
 int NumberOfAvailablePages;//AvailableMemory expressed as pages
 int NumberOfRequestedPages; //MemoryRequested expressed as pages 
@@ -258,6 +258,7 @@ void Dispatcher() {
       }
     	
     } else if (policy == PAGING) {
+        NumberOfRequestedPages = ceil((float)processOnCPU->MemoryRequested/PageSize);
         printf(" >> deallocated %d pages from %d, %d frames available\n", NumberOfRequestedPages, processOnCPU->ProcessID, NumberOfAvailablePages);
         NumberOfAvailablePages += NumberOfRequestedPages;
     }
